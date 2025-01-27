@@ -1,4 +1,4 @@
 // src/index.ts
 
-export { createChunk } from './core';
+export { chunk } from './core';
 export type { Chunk } from './core';
