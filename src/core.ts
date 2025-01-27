@@ -1,30 +1,36 @@
-// Define the Chunk type
-export type Chunk<T> = {
-  get: () => T; // Get the value of the chunk
-  set: (newValue: T) => void; // Set the value of the chunk
-  subscribe: (callback: (value: T) => void) => () => void; // Subscribe to changes
-};
+export type Subscriber<T> = (newValue: T) => void;
 
-// Chunk creation function
-export function createChunk<T>(initialValue: T): Chunk<T> {
-  let value = initialValue; // The current value of the chunk
-  const subscribers = new Set<(value: T) => void>(); // Set of subscribers
+export interface Chunk<T> {
+  get: () => T;
+  set: (value: T) => void;
+  subscribe: (callback: Subscriber<T>) => () => void;
+}
 
-  return {
-    // Get the current value
-    get() {
-      return value;
-    },
-    // Set a new value and notify subscribers
-    set(newValue: T) {
+export function chunk<T>(initialValue: T): Chunk<T> {
+  let value = initialValue;
+  const subscribers: Subscriber<T>[] = [];
+
+  const get = () => value;
+
+  const set = (newValue: T) => {
+    if (newValue !== value) {
       value = newValue;
-      subscribers.forEach((callback) => callback(value));
-    },
-    // Subscribe to changes
-    subscribe(callback: (value: T) => void) {
-      subscribers.add(callback);
-      // Return an unsubscribe function
-      return () => subscribers.delete(callback);
-    },
+      subscribers.forEach((subscriber) => subscriber(value)); // Notify all subscribers
+    }
   };
+
+  const subscribe = (callback: Subscriber<T>) => {
+    subscribers.push(callback);
+    callback(value); // Immediately notify on subscription
+
+    // Return unsubscribe function
+    return () => {
+      const index = subscribers.indexOf(callback);
+      if (index >= 0) {
+        subscribers.splice(index, 1);
+      }
+    };
+  };
+
+  return { get, set, subscribe };
 }
