@@ -4,6 +4,7 @@ export interface Chunk<T> {
   get: () => T;
   set: (value: T) => void;
   subscribe: (callback: Subscriber<T>) => () => void;
+  derive?: <D>(fn: (value: T) => D) => Chunk<D>; // Allows derived chunk based on another chunk
 }
 
 export function chunk<T>(initialValue: T): Chunk<T> {
@@ -32,5 +33,21 @@ export function chunk<T>(initialValue: T): Chunk<T> {
     };
   };
 
-  return { get, set, subscribe };
+  // derive function - allows creating a derived chunk based on another chunk
+  // This is a higher-order function that takes a function and returns a new chunk
+  // The new chunk will have the value transformed by the function
+  const derive = <D>(fn: (value: T) => D) => {
+    const derivedValue = fn(value);
+    const derivedChunk = chunk(derivedValue);
+
+    // Subscribe to the original chunk, and whenever it updates, update the derived chunk
+    subscribe(() => {
+      const newDerivedValue = fn(value);
+      derivedChunk.set(newDerivedValue);
+    });
+
+    return derivedChunk;
+  };
+
+  return { get, set, subscribe, derive };
 }
