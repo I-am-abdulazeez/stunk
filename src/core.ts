@@ -4,7 +4,7 @@ export interface Chunk<T> {
   get: () => T;
   set: (value: T) => void;
   subscribe: (callback: Subscriber<T>) => () => void;
-  derive?: <D>(fn: (value: T) => D) => Chunk<D>; // Allows derived chunk based on another chunk
+  derive: <D>(fn: (value: T) => D) => Chunk<D>; // Allows derived chunk based on another chunk
 }
 
 export function chunk<T>(initialValue: T): Chunk<T> {
