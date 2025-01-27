@@ -1,7 +1,7 @@
 {
-  "name": "dara",
+  "name": "stunk",
   "version": "0.1.0",
-  "description": "Dàrá - A framework-agnostic state management library using the Atomic State technique.",
+  "description": "Stunk - A framework-agnostic state management library implementing the Atomic State technique, utilizing chunk-based units for efficient state management.",
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
   "scripts": {
