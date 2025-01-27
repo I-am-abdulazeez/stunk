@@ -1,5 +1,5 @@
 {
-  "name": "dàrá",
+  "name": "dara",
   "version": "0.1.0",
   "description": "Dàrá - A framework-agnostic state management library using the Atomic State technique.",
   "main": "dist/index.js",
