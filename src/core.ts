@@ -5,6 +5,7 @@ export interface Chunk<T> {
   set: (value: T) => void;
   subscribe: (callback: Subscriber<T>) => () => void;
   derive: <D>(fn: (value: T) => D) => Chunk<D>; // Allows derived chunk based on another chunk
+  reset: () => void;
 }
 
 export function chunk<T>(initialValue: T): Chunk<T> {
@@ -33,6 +34,13 @@ export function chunk<T>(initialValue: T): Chunk<T> {
     };
   };
 
+
+  // Reset function - allows resetting the chunk to its initial value and notifying all subscribers
+  const reset = () => {
+    value = initialValue;
+    subscribers.forEach((subscriber) => subscriber(value));
+  };
+
   // derive function - allows creating a derived chunk based on another chunk
   // This is a higher-order function that takes a function and returns a new chunk
   // The new chunk will have the value transformed by the function
@@ -49,5 +57,5 @@ export function chunk<T>(initialValue: T): Chunk<T> {
     return derivedChunk;
   };
 
-  return { get, set, subscribe, derive };
+  return { get, set, subscribe, derive, reset };
 }
