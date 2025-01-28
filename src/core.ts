@@ -11,6 +11,8 @@ export interface Chunk<T> {
   derive: <D>(fn: (value: T) => D) => Chunk<D>;
   /** Reset the chunk to its initial value. */
   reset: () => void;
+  /** Destroy the chunk and all its subscribers. */
+  destroy: () => void;
 }
 
 export function chunk<T>(initialValue: T): Chunk<T> {
@@ -49,6 +51,11 @@ export function chunk<T>(initialValue: T): Chunk<T> {
     subscribers.forEach((subscriber) => subscriber(value));
   };
 
+  const destroy = () => {
+    subscribers.clear();
+    value = initialValue;
+  };
+
   // This is a powerful feature that allows you to create derived chunk from the original chunk.
   const derive = <D>(fn: (value: T) => D) => {
     const derivedValue = fn(value);
@@ -63,5 +70,5 @@ export function chunk<T>(initialValue: T): Chunk<T> {
     return derivedChunk;
   };
 
-  return { get, set, subscribe, derive, reset };
+  return { get, set, subscribe, derive, reset, destroy };
 }
