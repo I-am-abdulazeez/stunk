@@ -36,17 +36,34 @@ test("Chunk should allow unsubscribing from updates", () => {
   const callback = jest.fn();
   const unsubscribe = chunky.subscribe(callback);
 
+  // Initial subscription call
+  expect(callback).toHaveBeenCalledWith(0);
+  expect(callback).toHaveBeenCalledTimes(1);
+
   chunky.set(5);
   expect(callback).toHaveBeenCalledWith(5);
+  expect(callback).toHaveBeenCalledTimes(2);
 
   unsubscribe();
-  chunky.set(10); // No callback should be called now
-  expect(callback).toHaveBeenCalledTimes(1);
+  chunky.set(10);
+  expect(callback).toHaveBeenCalledTimes(2); // Still called only twice
 });
 
+test("Chunk should reset to initial value and notify subscribers", () => {
+  const count = chunk(5);
+  const callback = jest.fn();
 
-describe('Chunk Derivation', () => {
-  it('should create a derived chunk and update it when the original chunk changes', () => {
+  count.subscribe(callback);
+  count.set(10);
+  expect(count.get()).toBe(10);
+
+  count.reset();
+  expect(count.get()).toBe(5);
+  expect(callback).toHaveBeenCalledWith(5); // Subscriber should be notified
+});
+
+describe("Chunk Derivation", () => {
+  it("should create a derived chunk and update it when the original chunk changes", () => {
     // Create an initial chunk with value 5
     const count = chunk(5);
 
@@ -78,5 +95,67 @@ describe('Chunk Derivation', () => {
     // Check that the spies were called with the updated values
     expect(countSpy).toHaveBeenCalledWith(10);
     expect(doubleCountSpy).toHaveBeenCalledWith(20);
+  });
+});
+
+describe("Chunk Destroy", () => {
+  it("should reset the chunk to its initial value and clear all subscribers", () => {
+    const count = chunk(5);
+    const callback = jest.fn();
+
+    // Subscribe to the chunk
+    count.subscribe(callback);
+
+    // Update the chunk's value
+    count.set(10);
+    expect(count.get()).toBe(10);
+    expect(callback).toHaveBeenCalledWith(10);
+
+    // Destroy the chunk
+    count.destroy();
+
+    // Check that the value is reset
+    expect(count.get()).toBe(5);
+
+    // Update the chunk again
+    count.set(20);
+
+    // Check that the callback was not called after destroy
+    expect(callback).toHaveBeenCalledTimes(1); // Only called once (for set(10))
+  });
+
+  it("should not notify subscribers after destroy", () => {
+    const count = chunk(5);
+    const callback = jest.fn();
+
+    // Subscribe to the chunk
+    count.subscribe(callback);
+
+    // Destroy the chunk
+    count.destroy();
+
+    // Update the chunk's value
+    count.set(10);
+
+    // Check that the callback was not called
+    expect(callback).toHaveBeenCalledTimes(0);
+  });
+
+  it("should allow reusing the chunk after destroy (if needed)", () => {
+    const count = chunk(5);
+    const callback = jest.fn();
+
+    // Subscribe to the chunk
+    count.subscribe(callback);
+
+    // Destroy the chunk
+    count.destroy();
+
+    // Re-subscribe and update the chunk
+    count.subscribe(callback);
+    count.set(10);
+
+    // Check that the callback is called again
+    expect(callback).toHaveBeenCalledWith(10);
   });
 });
