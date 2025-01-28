@@ -16,15 +16,23 @@ export interface Chunk<T> {
 }
 
 export function chunk<T>(initialValue: T): Chunk<T> {
+  if (initialValue === undefined || initialValue === null) {
+    throw new Error("Initial value cannot be undefined or null.");
+  }
+
   let value = initialValue;
-  const subscribers = new Set<Subscriber<T>>(); // Use a Set instead of an array
+  const subscribers = new Set<Subscriber<T>>();
 
   const get = () => value;
 
   const set = (newValue: T) => {
+    if (newValue === null || newValue === undefined) {
+      throw new Error("Value cannot be null or undefined.");
+    }
+
     if (newValue !== value) {
       value = newValue;
-      subscribers.forEach((subscriber) => subscriber(value)); // Notify all subscribers
+      subscribers.forEach((subscriber) => subscriber(value));
     }
   };
 
@@ -52,16 +60,21 @@ export function chunk<T>(initialValue: T): Chunk<T> {
   };
 
   const destroy = () => {
+    if (subscribers.size > 0) {
+      console.warn("Destroying chunk with active subscribers. This may lead to memory leaks.");
+    }
     subscribers.clear();
     value = initialValue;
   };
 
-  // This is a powerful feature that allows you to create derived chunk from the original chunk.
   const derive = <D>(fn: (value: T) => D) => {
+    if (typeof fn !== "function") {
+      throw new Error("Derive function must be a function.");
+    }
+
     const derivedValue = fn(value);
     const derivedChunk = chunk(derivedValue);
 
-    // Subscribe to the original chunk, and whenever it updates, update the derived chunk
     subscribe(() => {
       const newDerivedValue = fn(value);
       derivedChunk.set(newDerivedValue);
