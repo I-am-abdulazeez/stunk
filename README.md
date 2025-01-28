@@ -35,7 +35,7 @@ A **chunk** is a small container of state. It holds a value, and you can do thre
 - **Set** a new value for the chunk
 - **Subscribe** to the chunk to get notified whenever the value changes
 
-### Example:
+### Usage:
 
 ```ts
 import { chunk } from "stunk";
@@ -53,7 +53,7 @@ console.log(count.get()); // 5
 
 You can **subscribe** to a **chunk**. This means you get notified whenever the value inside the chunk changes. This is super useful for updating your app automatically when **state** changes.
 
-### Example
+### Usage
 
 ```ts
 const count = chunk(0);
@@ -64,11 +64,32 @@ count.subscribe(callback);
 count.set(10); // Will log: "Updated value: 10"
 ```
 
-### 3. **Unsubscribing**
+### 3. **Deriving New Chunks**
+
+With Stunk, you can create **derived chunks**. This means you can create a new **chunk** based on the value of another **chunk**. When the original **chunk** changes, the **derived chunk** will automatically update.
+
+### Usage
+
+```ts
+const count = chunk(5);
+
+// Create a derived chunk that doubles the count
+const doubleCount = count.derive((value) => value * 2);
+
+count.subscribe((newValue) => console.log("Count:", newValue));
+doubleCount.subscribe((newValue) => console.log("Double count:", newValue));
+
+count.set(10);
+// Will log:
+// "Count: 10"
+// "Double count: 20"
+```
+
+### 4. **Unsubscribing**
 
 You can **unsubscribe** from a **chunk**, which means you stop getting notifications when the **value changes**. You can do this by calling the function that’s returned when you **subscribe..** Well, would you wanna do that? 😂
 
-### Example
+### Usage
 
 ```ts
 const count = chunk(0);
@@ -82,3 +103,11 @@ unsubscribe(); // Unsubscribe
 
 count.set(20); // Nothing will happen now, because you unsubscribed
 ```
+
+### 5. **Atomic State Technique**
+
+The **Atomic State** technique is all about breaking down your state into small, manageable chunks. This allows you to:
+
+- Keep state changes focused and efficient
+- Update only the parts of your app that need to change
+- Easily manage and subscribe to state changes
