@@ -1,4 +1,5 @@
 export type Subscriber<T> = (newValue: T) => void;
+export type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
 
 export interface Chunk<T> {
   /** Get the current value of the chunk. */
@@ -15,7 +16,7 @@ export interface Chunk<T> {
   destroy: () => void;
 }
 
-export function chunk<T>(initialValue: T): Chunk<T> {
+export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chunk<T> {
   if (initialValue === undefined || initialValue === null) {
     throw new Error("Initial value cannot be undefined or null.");
   }
@@ -30,26 +31,31 @@ export function chunk<T>(initialValue: T): Chunk<T> {
       throw new Error("Value cannot be null or undefined.");
     }
 
-    if (newValue !== value) {
-      value = newValue;
-      subscribers.forEach((subscriber) => subscriber(value));
-    }
+    const runMiddleware = (index: number, val: T) => {
+      if (val === null || val === undefined) {
+        throw new Error("Value cannot be null or undefined.");
+      }
+      if (index < middleware.length) {
+        middleware[index](val, (nextValue) => runMiddleware(index + 1, nextValue));
+      } else {
+        if (val !== value) {
+          value = val;
+          subscribers.forEach((subscriber) => subscriber(value));
+        }
+      }
+    };
+
+    runMiddleware(0, newValue);
   };
 
   const subscribe = (callback: Subscriber<T>) => {
     if (typeof callback !== "function") {
       throw new Error("Callback must be a function.");
     }
-    if (subscribers.has(callback)) {
-      console.warn("Callback is already subscribed. This may lead to duplicate updates.");
-    }
     subscribers.add(callback);
     callback(value);
 
     return () => {
-      if (!subscribers.has(callback)) {
-        console.warn("Callback was not found in subscribers. It may have already been unsubscribed.");
-      }
       subscribers.delete(callback);
     };
   };
@@ -60,18 +66,11 @@ export function chunk<T>(initialValue: T): Chunk<T> {
   };
 
   const destroy = () => {
-    if (subscribers.size > 0) {
-      console.warn("Destroying chunk with active subscribers. This may lead to memory leaks.");
-    }
     subscribers.clear();
     value = initialValue;
   };
 
   const derive = <D>(fn: (value: T) => D) => {
-    if (typeof fn !== "function") {
-      throw new Error("Derive function must be a function.");
-    }
-
     const derivedValue = fn(value);
     const derivedChunk = chunk(derivedValue);
 
