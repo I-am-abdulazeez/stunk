@@ -1,10 +1,15 @@
 export type Subscriber<T> = (newValue: T) => void;
 
 export interface Chunk<T> {
+  /** Get the current value of the chunk. */
   get: () => T;
+  /** Set a new value for the chunk. */
   set: (value: T) => void;
+  /** Subscribe to changes in the chunk. Returns an unsubscribe function. */
   subscribe: (callback: Subscriber<T>) => () => void;
-  derive: <D>(fn: (value: T) => D) => Chunk<D>; // Allows derived chunk based on another chunk
+  /** Create a derived chunk based on this chunk's value. */
+  derive: <D>(fn: (value: T) => D) => Chunk<D>;
+  /** Reset the chunk to its initial value. */
   reset: () => void;
 }
 
@@ -22,12 +27,20 @@ export function chunk<T>(initialValue: T): Chunk<T> {
   };
 
   const subscribe = (callback: Subscriber<T>) => {
-    subscribers.add(callback); // Add the callback to the Set
-    callback(value); // Immediately notify on subscription
+    if (typeof callback !== "function") {
+      throw new Error("Callback must be a function.");
+    }
+    if (subscribers.has(callback)) {
+      console.warn("Callback is already subscribed. This may lead to duplicate updates.");
+    }
+    subscribers.add(callback);
+    callback(value);
 
-    // Return unsubscribe function
     return () => {
-      subscribers.delete(callback); // Remove the callback from the Set
+      if (!subscribers.has(callback)) {
+        console.warn("Callback was not found in subscribers. It may have already been unsubscribed.");
+      }
+      subscribers.delete(callback);
     };
   };
 
@@ -36,8 +49,7 @@ export function chunk<T>(initialValue: T): Chunk<T> {
     subscribers.forEach((subscriber) => subscriber(value));
   };
 
-  // Derive function -  This function allows you to create a derived chunk based on the current chunk.
-  // This is a powerful feature that allows you to create derived state from the original state.
+  // This is a powerful feature that allows you to create derived chunk from the original chunk.
   const derive = <D>(fn: (value: T) => D) => {
     const derivedValue = fn(value);
     const derivedChunk = chunk(derivedValue);
