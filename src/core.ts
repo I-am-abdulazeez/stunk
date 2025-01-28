@@ -10,7 +10,7 @@ export interface Chunk<T> {
 
 export function chunk<T>(initialValue: T): Chunk<T> {
   let value = initialValue;
-  const subscribers: Subscriber<T>[] = [];
+  const subscribers = new Set<Subscriber<T>>(); // Use a Set instead of an array
 
   const get = () => value;
 
@@ -22,28 +22,22 @@ export function chunk<T>(initialValue: T): Chunk<T> {
   };
 
   const subscribe = (callback: Subscriber<T>) => {
-    subscribers.push(callback);
+    subscribers.add(callback); // Add the callback to the Set
     callback(value); // Immediately notify on subscription
 
     // Return unsubscribe function
     return () => {
-      const index = subscribers.indexOf(callback);
-      if (index >= 0) {
-        subscribers.splice(index, 1);
-      }
+      subscribers.delete(callback); // Remove the callback from the Set
     };
   };
 
-
-  // Reset function - allows resetting the chunk to its initial value and notifying all subscribers
   const reset = () => {
     value = initialValue;
     subscribers.forEach((subscriber) => subscriber(value));
   };
 
-  // derive function - allows creating a derived chunk based on another chunk
-  // This is a higher-order function that takes a function and returns a new chunk
-  // The new chunk will have the value transformed by the function
+  // Derive function -  This function allows you to create a derived chunk based on the current chunk.
+  // This is a powerful feature that allows you to create derived state from the original state.
   const derive = <D>(fn: (value: T) => D) => {
     const derivedValue = fn(value);
     const derivedChunk = chunk(derivedValue);
