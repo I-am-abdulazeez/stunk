@@ -16,6 +16,24 @@ export interface Chunk<T> {
   destroy: () => void;
 }
 
+let batchDepth = 0;
+const batchQueue = new Set<() => void>();
+
+export function batch(callback: () => void) {
+  batchDepth++;
+  try {
+    callback();
+  } finally {
+    batchDepth--;
+    if (batchDepth === 0) {
+      // Execute all queued updates
+      batchQueue.forEach(update => update());
+      batchQueue.clear();
+    }
+  }
+}
+
+
 export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chunk<T> {
   if (initialValue === undefined || initialValue === null) {
     throw new Error("Initial value cannot be undefined or null.");
@@ -23,11 +41,24 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
 
   let value = initialValue;
   const subscribers = new Set<Subscriber<T>>();
+  let isDirty = false;
 
   const get = () => value;
 
   const notifySubscribers = () => {
-    subscribers.forEach((subscriber) => subscriber(value));
+    if (batchDepth > 0) {
+      if (!isDirty) {
+        isDirty = true;
+        batchQueue.add(() => {
+          if (isDirty) {
+            subscribers.forEach((subscriber) => subscriber(value));
+            isDirty = false;
+          }
+        });
+      }
+    } else {
+      subscribers.forEach((subscriber) => subscriber(value));
+    }
   }
 
   const set = (newValue: T) => {
