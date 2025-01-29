@@ -93,7 +93,7 @@ count.set(10);
 
 ### 1.3. **Unsubscribing**
 
-You can **unsubscribe** from a **chunk**, which means you stop getting notifications when the **value changes**. You can do this by calling the function that’s returned when you **subscribe..** Well, would you wanna do that? 😂
+You can **unsubscribe** from a **chunk**, which means you stop getting notifications when the **value changes**. You can do this by calling the function that's returned when you **subscribe..** Well, would you wanna do that? 😂
 
 ### Usage
 
@@ -110,7 +110,63 @@ unsubscribe(); // Unsubscribe
 count.set(20); // Nothing will happen now, because you unsubscribed
 ```
 
-### 1,4. Middleware
+### 1.4. **Batch Updates**
+
+Batch updates allow you to group multiple **state changes** together and notify **subscribers** only once at the end of the **batch**. This is particularly useful for **optimizing performance** when you need to **update multiple** chunks at the same time.
+
+### Usage
+
+```ts
+import { chunk, batch } from "stunk";
+
+const firstName = chunk("John");
+const lastName = chunk("Doe");
+const age = chunk(25);
+
+// Subscribe to changes
+firstName.subscribe((name) => console.log("First name changed:", name));
+lastName.subscribe((name) => console.log("Last name changed:", name));
+age.subscribe((age) => console.log("Age changed:", age));
+
+// Without batch - triggers three separate updates
+firstName.set("Jane"); // Logs immediately
+lastName.set("Smith"); // Logs immediately
+age.set(26); // Logs immediately
+
+// With batch - triggers only one update per chunk at the end
+batch(() => {
+  firstName.set("Jane"); // Doesn't log yet
+  lastName.set("Smith"); // Doesn't log yet
+  age.set(26); // Doesn't log yet
+}); // All logs happen here at once
+
+// Nested batches are also supported
+batch(() => {
+  firstName.set("Jane");
+  batch(() => {
+    lastName.set("Smith");
+    age.set(26);
+  });
+});
+```
+
+Looks intresting right? There's more!
+
+Batching is particularly useful when:
+
+- Updating multiple related pieces of state at once
+- Performing form updates
+- Handling complex state transitions
+- Optimizing performance in data-heavy applications
+
+The batch function ensures that:
+
+- All updates within the batch are processed together
+- Subscribers are notified only once with the final value
+- Nested batches are handled correctly
+- Updates are processed even if an error occurs (using try/finally)
+
+### 1.5. **Middleware**
 
 Middleware allows you to customize how values are set in a **chunk**. For example, you can add **logging**, **validation**, or any custom behavior when a chunk's value changes.
 
