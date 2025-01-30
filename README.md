@@ -70,6 +70,25 @@ count.subscribe(callback);
 count.set(10); // Will log: "Updated value: 10"
 ```
 
+### 1.1.0. **Unsubscribing**
+
+You can **unsubscribe** from a **chunk**, which means you stop getting notifications when the **value changes**. You can do this by calling the function that's returned when you **subscribe..** Well, would you wanna do that? 😂
+
+### Usage
+
+```ts
+const count = chunk(0);
+const callback = (newValue: number) => console.log("Updated value:", newValue);
+
+const unsubscribe = count.subscribe(callback);
+
+count.set(10); // Will log: "Updated value: 10"
+
+unsubscribe(); // Unsubscribe
+
+count.set(20); // Nothing will happen now, because you unsubscribed
+```
+
 ### 1.2. **Deriving New Chunks**
 
 With Stunk, you can create **derived chunks**. This means you can create a new **chunk** based on the value of another **chunk**. When the original **chunk** changes, the **derived chunk** will automatically update.
@@ -91,26 +110,7 @@ count.set(10);
 // "Double count: 20"
 ```
 
-### 1.3. **Unsubscribing**
-
-You can **unsubscribe** from a **chunk**, which means you stop getting notifications when the **value changes**. You can do this by calling the function that's returned when you **subscribe..** Well, would you wanna do that? 😂
-
-### Usage
-
-```ts
-const count = chunk(0);
-const callback = (newValue: number) => console.log("Updated value:", newValue);
-
-const unsubscribe = count.subscribe(callback);
-
-count.set(10); // Will log: "Updated value: 10"
-
-unsubscribe(); // Unsubscribe
-
-count.set(20); // Nothing will happen now, because you unsubscribed
-```
-
-### 1.4. **Batch Updates**
+### 1.3. **Batch Updates**
 
 Batch updates allow you to group multiple **state changes** together and notify **subscribers** only once at the end of the **batch**. This is particularly useful for **optimizing performance** when you need to **update multiple** chunks at the same time.
 
@@ -166,7 +166,7 @@ The batch function ensures that:
 - Nested batches are handled correctly
 - Updates are processed even if an error occurs (using try/finally)
 
-### 1.5. **Middleware**
+### 1.4. **Middleware**
 
 Middleware allows you to customize how values are set in a **chunk**. For example, you can add **logging**, **validation**, or any custom behavior when a chunk's value changes.
 
@@ -193,6 +193,50 @@ const age = chunk(25, [logger, nonNegativeValidator]);
 age.set(30); // Logs: "Setting value: 30"
 age.set(-5); // Throws an error: "Value must be non-negative!"
 ```
+
+### 1.4.1. Middleware: Undo & Redo (withHistory)
+
+The **withHistory** middleware extends a chunk to support undo and redo functionality. This allows you to navigate back and forth between previous **states**, making it useful for implementing features like **undo/redo**, form history, and state time travel.
+
+### Usage
+
+```ts
+import { chunk } from "stunk";
+import { withHistory } from "stunk/middleware"; // Import the history middleware
+
+const counter = withHistory(chunk(0));
+
+counter.set(10);
+counter.set(20);
+
+console.log(counter.get()); // 20
+
+counter.undo(); // Go back one step
+console.log(counter.get()); // 10
+
+counter.redo(); // Go forward one step
+console.log(counter.get()); // 20
+```
+
+**Available Methods**
+
+| Method           | Description                                                 |
+| ---------------- | ----------------------------------------------------------- |
+| `undo()`         | Reverts to the previous state (if available).               |
+| `redo()`         | Moves forward to the next state (if available).             |
+| `canUndo()`      | Returns `true` if there are past states available.          |
+| `canRedo()`      | Returns `true` if there are future states available.        |
+| `getHistory()`   | Returns an `array` of all past states.                      |
+| `clearHistory()` | Clears all stored history and keeps only the current state. |
+
+**Example: Limiting History Size (Optional)**
+You can specify a max history size to prevent excessive memory usage.
+
+```ts
+const counter = withHistory(chunk(0), { maxHistory: 5 }); // Only keeps the last 5 changes -- default is 100.
+```
+
+This prevents the history from growing indefinitely and ensures efficient memory usage.
 
 ## 2. **Atomic State Technique**
 
