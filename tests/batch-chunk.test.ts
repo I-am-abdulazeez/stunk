@@ -1,4 +1,4 @@
-import { chunk, batch } from '../src/core';
+import { chunk, batch } from '../src/core/core';
 
 
 describe('Chunk batch updates', () => {

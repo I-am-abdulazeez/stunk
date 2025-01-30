@@ -1,4 +1,4 @@
-import { chunk } from "../src/core";
+import { chunk } from "../src/core/core";
 import { logger } from "../src/middleware/logger";
 import { nonNegativeValidator } from "../src/middleware/validator";
 

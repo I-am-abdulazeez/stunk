@@ -1,4 +1,4 @@
-import { chunk } from "../src/core";
+import { chunk } from "../src/core/core";
 
 test("Chunk should get and set values correctly", () => {
   const chunky = chunk<number>(0);
