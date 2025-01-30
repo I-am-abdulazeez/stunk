@@ -31,4 +31,4 @@ yarn.lock
 # Optional: You may want to ignore your environment-specific config
 .env
 
-notes.ts
+notes*
