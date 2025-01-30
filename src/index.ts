@@ -4,4 +4,4 @@ export type { Chunk } from './core/core';
 export { logger } from "./middleware/logger";
 export { nonNegativeValidator } from "./middleware/validator";
 
-export { withHistory } from './core/history';
+export { withHistory } from './middleware/history';
