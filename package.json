@@ -15,7 +15,7 @@
     "framework-agnostic",
     "stunk",
     "state",
-    "chunk",
+    "chunk"
   ],
   "author": "AbdulAzeez",
   "license": "MIT",
