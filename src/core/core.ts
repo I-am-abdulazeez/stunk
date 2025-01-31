@@ -39,18 +39,18 @@ export function select<T, S>(sourceChunk: Chunk<T>, selector: (value: T) => S): 
   const selectedChunk = chunk(initialValue);
   let previousSelected = initialValue;
 
-  // Step 4: Subscribe to source changes with equality checking
+  // Subscribe to source changes with equality checking
   sourceChunk.subscribe((newValue) => {
     const newSelected = selector(newValue);
 
-    // Step 5: Only update if the selected value actually changed
+    // Only update if the selected value actually changed
     if (!Object.is(newSelected, previousSelected)) {
       previousSelected = newSelected;
       selectedChunk.set(newSelected);
     }
   });
 
-  // Step 6: Return read-only version of the chunk
+  // Return read-only version of the chunk
   return {
     ...selectedChunk,
     // Prevent setting values directly on the selector
