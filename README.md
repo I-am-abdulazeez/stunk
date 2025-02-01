@@ -19,8 +19,8 @@ Think of your application's state as a big jar of data. In traditional state man
 
 - 🔄 Reactive updates with efficient subscription system
 - 🎯 Granular state selection
-- ⏳ Built-in undo/redo
-- 🔄 Batch updates for performance
+- ⏳ Built-in undo/redo/getHistory/clearHistory
+- 🔄 Batch updates for performance and nested batch updates
 - 🛠️ Extensible middleware
 - 🔍 Full TypeScript support
 
