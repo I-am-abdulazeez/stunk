@@ -1,8 +1,6 @@
 # Stunk
 
-**Stunk** is a **framework-agnostic** state management library that helps you manage your application's state in a clean and simple way. It uses a technique called **Atomic State**, breaking down state into smaller **chunks** that are easy to update, subscribe to, and manage.
-
----
+A lightweight, framework-agnostic state management library using atomic state principles. Stunk breaks down state into manageable "chunks" for easy updates and subscriptions.
 
 ## Pronunciation and Meaning
 
@@ -15,62 +13,59 @@ Think of your application's state as a big jar of data. In traditional state man
 
 **Stunk** is like dividing your jar into many smaller containers, each holding a single piece of state. These smaller containers are called **chunks**. Each **chunk** can be updated and accessed easily, and any part of your app can subscribe to changes in a chunk so it gets updated automatically.
 
-### Why Stunk
+## Features
 
-- lightweight, framework-agnostic state management.
-- granular control over state updates and subscriptions.
-- modular and composable state architecture.
+<!-- - 🎯 Framework agnostic -->
 
----
+- 🔄 Reactive updates with efficient subscription system
+- 🎯 Granular state selection
+- ⏳ Built-in undo/redo
+- 🔄 Batch updates for performance
+- 🛠️ Extensible middleware
+- 🔍 Full TypeScript support
 
 ## Installation
-
-You can install **Stunk** from NPM:
 
 ```bash
 npm install stunk
 ```
 
-## 1 Features
+## Quick Start
 
-### 1.0 **Chunks**
+```typescript
+import { chunk, select, batch } from "stunk";
 
-A **chunk** is a small container of state. It holds a value, and you can do three things with it:
+// Create a state chunk
+const counter = chunk(0);
+const userChunk = chunk({ name: "Olamide", age: 26 });
 
-- **Get** the current value of the chunk
-- **Set** a new value for the chunk
-- **Subscribe** to the chunk to get notified whenever the value changes
+// Select specific state - Selector
+const nameSelector = select(userChunk, (user) => user.name);
 
-### Usage:
+// Subscribe to changes
+nameSelector.subscribe((name) => console.log("Name:", name));
+counter.subscribe((count) => console.log("Counter", counter));
 
-```ts
-import { chunk } from "stunk";
-
-const count = chunk(0);
-
-console.log(count.get()); // 0
-
-count.set(5);
-
-console.log(count.get()); // 5
+// Batch updates
+batch(() => {
+  userChunk.set({ name: "Olalekan", age: 27 }); // Doesn't log yet
+  counter.set(5); // Doesn't log yet
+}); // All logs happen here at once
 ```
 
-### 1.1. **Subscription**
+## Core Concepts
 
-You can **subscribe** to a **chunk**. This means you get notified whenever the value inside the chunk changes. This is super useful for updating your app automatically when **state** changes.
+### Chunks
 
-### Usage
+Basic unit of state with get/set/subscribe functionality:
 
-```ts
-const count = chunk(0);
-const callback = (newValue: number) => console.log("Updated value:", newValue);
-
-count.subscribe(callback);
-
-count.set(10); // Will log: "Updated value: 10"
+```typescript
+const counter = chunk(0);
+counter.subscribe((value) => console.log(value));
+counter.set(5);
 ```
 
-### 1.1.0. **Unsubscribing**
+## Unsubscribing
 
 You can **unsubscribe** from a **chunk**, which means you stop getting notifications when the **value changes**. You can do this by calling the function that's returned when you **subscribe..** Well, would you wanna do that? 😂
 
@@ -89,13 +84,11 @@ unsubscribe(); // Unsubscribe
 count.set(20); // Nothing will happen now, because you unsubscribed
 ```
 
-### 1.2. **Deriving New Chunks**
+### Deriving New Chunks
 
 With Stunk, you can create **derived chunks**. This means you can create a new **chunk** based on the value of another **chunk**. When the original **chunk** changes, the **derived chunk** will automatically update.
 
-### Usage
-
-```ts
+```typescript
 const count = chunk(5);
 
 // Create a derived chunk that doubles the count
@@ -110,81 +103,41 @@ count.set(10);
 // "Double count: 20"
 ```
 
-### 1.3. **Batch Updates**
+### Batch Updates
 
-Batch updates allow you to group multiple **state changes** together and notify **subscribers** only once at the end of the **batch**. This is particularly useful for **optimizing performance** when you need to **update multiple** chunks at the same time.
+Group multiple updates:
 
-### Usage
-
-```ts
-import { chunk, batch } from "stunk";
-
-const firstName = chunk("John");
-const lastName = chunk("Doe");
-const age = chunk(25);
-
-// Subscribe to changes
-firstName.subscribe((name) => console.log("First name changed:", name));
-lastName.subscribe((name) => console.log("Last name changed:", name));
-age.subscribe((age) => console.log("Age changed:", age));
-
-// Without batch - triggers three separate updates
-firstName.set("Jane"); // Logs immediately
-lastName.set("Smith"); // Logs immediately
-age.set(26); // Logs immediately
-
-// With batch - triggers only one update per chunk at the end
+```typescript
 batch(() => {
-  firstName.set("Jane"); // Doesn't log yet
-  lastName.set("Smith"); // Doesn't log yet
-  age.set(26); // Doesn't log yet
-}); // All logs happen here at once
+  chunk1.set(newValue1);
+  chunk2.set(newValue2);
+}); // Single notification
 
 // Nested batches are also supported
 batch(() => {
-  firstName.set("Jane");
+  chunk1.set("Tunde");
   batch(() => {
-    lastName.set("Smith");
-    age.set(26);
+    chunk1.set(26);
   });
 });
 ```
 
-Looks intresting right? There's more!
+### Selectors
 
-Batching is particularly useful when:
+Efficiently access and react to specific state parts:
 
-- Updating multiple related pieces of state at once
-- Performing form updates
-- Handling complex state transitions
-- Optimizing performance in data-heavy applications
+```typescript
+// With selector - more specific, read-only
+const userChunk = chunk({ name: "Olamide", score: 100 });
+const scoreSelector = select(userChunk, (u) => u.score);
+// scoreSelector.set(200); // This would throw an error
+```
 
-The batch function ensures that:
-
-- All updates within the batch are processed together
-- Subscribers are notified only once with the final value
-- Nested batches are handled correctly
-- Updates are processed even if an error occurs (using try/finally)
-
-### 1.4. **Middleware**
+## Middleware
 
 Middleware allows you to customize how values are set in a **chunk**. For example, you can add **logging**, **validation**, or any custom behavior when a chunk's value changes.
 
-A middleware is a function with the following structure:
-
-```ts
-export type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
-```
-
-- value: The value that is about to be set to the chunk.
-- next(value): A function you must call with the processed (or unaltered) value to continue the chain of middleware and eventually update the chunk's state.
-
-### Usage
-
-```ts
-import { chunk } from "stunk";
-import { logger } from "stunk/middleware"; // native to stunk
-import { nonNegativeValidator } from "stunk/middleware"; // native to stunk
+```typescript
 // You can also create yours and pass it []
 
 // Use middleware for logging and validation
@@ -194,16 +147,9 @@ age.set(30); // Logs: "Setting value: 30"
 age.set(-5); // Throws an error: "Value must be non-negative!"
 ```
 
-### 1.4.1. Middleware: Undo & Redo (withHistory)
+### History (Undo/Redo) - Time Travel
 
-The **withHistory** middleware extends a chunk to support undo and redo functionality. This allows you to navigate back and forth between previous **states**, making it useful for implementing features like **undo/redo**, form history, and state time travel.
-
-### Usage
-
-```ts
-import { chunk } from "stunk";
-import { withHistory } from "stunk/middleware"; // Import the history middleware
-
+```typescript
 const counter = withHistory(chunk(0));
 
 counter.set(10);
@@ -218,17 +164,6 @@ counter.redo(); // Go forward one step
 console.log(counter.get()); // 20
 ```
 
-**Available Methods**
-
-| Method           | Description                                                 |
-| ---------------- | ----------------------------------------------------------- |
-| `undo()`         | Reverts to the previous state (if available).               |
-| `redo()`         | Moves forward to the next state (if available).             |
-| `canUndo()`      | Returns `true` if there are past states available.          |
-| `canRedo()`      | Returns `true` if there are future states available.        |
-| `getHistory()`   | Returns an `array` of all past states.                      |
-| `clearHistory()` | Clears all stored history and keeps only the current state. |
-
 **Example: Limiting History Size (Optional)**
 You can specify a max history size to prevent excessive memory usage.
 
@@ -238,10 +173,74 @@ const counter = withHistory(chunk(0), { maxHistory: 5 }); // Only keeps the last
 
 This prevents the history from growing indefinitely and ensures efficient memory usage.
 
-## 2. **Atomic State Technique**
+## API Reference
 
-The **Atomic State** technique is all about breaking down your state into small, manageable chunks. This allows you to:
+### `chunk<T>(initialValue: T, middleware?: Middleware<T>[])`
 
-- Keep state changes focused and efficient
-- Update only the parts of your app that need to change
-- Easily manage and subscribe to state changes
+Creates a new state chunk.
+
+```typescript
+interface Chunk<T> {
+  get(): T;
+  set(value: T): void;
+  subscribe(callback: (value: T) => void): () => void;
+  derive<D>(fn: (value: T) => D): Chunk<D>;
+  destroy(): void;
+}
+```
+
+### `select<T, S>(sourceChunk: Chunk<T>, selector: (value: T) => S)`
+
+Creates an optimized selector.
+
+```typescript
+// Returns a read-only chunk that updates only when selected value changes
+const selector = select(userChunk, (user) => user.name);
+```
+
+### `batch(callback: () => void)`
+
+Batches multiple updates.
+
+```typescript
+batch(() => {
+  // Multiple updates here
+});
+
+batch(() => {
+  // Multiple updates here
+  batch(() => {
+    // Nested upddates here
+  });
+});
+```
+
+### `withHistory<T>(chunk: Chunk<T>, options?: { maxHistory?: number })`
+
+Adds undo/redo capabilities.
+
+```typescript
+interface ChunkWithHistory<T> extends Chunk<T> {
+  undo(): void; // Reverts to the previous state (if available).
+  redo(): void; // Moves forward to the next state (if available).
+  canUndo(): boolean; // Returns `true` if there are past states available.
+  canRedo(): boolean; // Returns `true` if there are future states available.
+  getHistory(): T[]; // Returns an `array` of all past states.
+  clearHistory(): void; // Clears all stored history and keeps only the current state.
+}
+```
+
+### `Middleware<T>`
+
+Custom state processing:
+
+```typescript
+type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
+```
+
+- value: The value that is about to be set to the chunk.
+- next(value): A function you must call with the processed (or unaltered) value to continue the chain of middleware and eventually update the chunk's state.
+
+## License
+
+MIT
