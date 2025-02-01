@@ -72,7 +72,7 @@ count.set(10); // Will log: "Updated value: 10"
 
 ### 1.1.0. **Unsubscribing**
 
-You can **unsubscribe** from a **chunk**, which means you stop getting notifications when the **value changes**. You can do this by calling the function that's returned when you **subscribe..** Well, would you wanna do that? 😂
+You can **unsubscribe** from a **chunk**, which means you stop getting notifications when the **value changes**. You can do this by calling the function that's returned when you **subscribe..**
 
 ### Usage
 
