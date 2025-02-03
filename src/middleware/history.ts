@@ -1,11 +1,29 @@
 import { Chunk } from "../core/core";
 
 export interface ChunkWithHistory<T> extends Chunk<T> {
+  /**
+ * Reverts to the previous state (if available).
+ */
   undo: () => void;
+  /**
+   * Moves to the next state (if available).
+   */
   redo: () => void;
+  /**
+   * Returns true if there is a previous state to revert to.
+   */
   canUndo: () => boolean;
+  /**
+   * Returns true if there is a next state to move to.
+   */
   canRedo: () => boolean;
+  /**
+   * Returns an array of all the values in the history.
+   */
   getHistory: () => T[];
+  /**
+   * Clears the history, keeping only the current value.
+   */
   clearHistory: () => void;
 }
 
