@@ -28,6 +28,8 @@ yarn add stunk
 
 ## Basic Usage
 
+A **chunk** is a small container of state. It holds a value, and you can do some stuffs with it:
+
 ```typescript
 import { chunk } from "stunk";
 
@@ -71,7 +73,7 @@ count.set(10);
 
 ## Batch Updates
 
-It group multiple **state changes** together and notify **subscribers** only once at the end of the **batch**. This is particularly useful for **optimizing performance** when you need to **update multiple** chunks at the same time.
+Batch Update group multiple **state changes** together and notify **subscribers** only once at the end of the **batch**. This is particularly useful for **optimizing performance** when you need to **update multiple** chunks at the same time.
 
 ```typescript
 import { chunk, batch } from "stunk";
@@ -106,12 +108,14 @@ const userChunk = chunk({
   email: "olamide@example.com",
 });
 
-// Select specific properties
+// Select specific properties -readonly
 const nameChunk = select(userChunk, (state) => state.name);
 const ageChunk = select(userChunk, (state) => state.age);
 
 nameChunk.subscribe((name) => console.log("Name changed:", name));
 // will only re-render if the selected part change.
+
+nameChunk.set("Olamide"); // ❌ this will throw an error, because it is a readonly.
 ```
 
 ## Time Travel (Middleware)
@@ -141,10 +145,28 @@ counterChunk.clearHistory(); // Clears the history, keeping only the current val
 You can specify a max history size to prevent excessive memory usage.
 
 ```ts
-const counter = withHistory(chunk(0), { maxHistory: 5 }); // Only keeps the last 5 changes -- default is 100.
+const counter = withHistory(chunk(0), { maxHistory: 5 });
+// Only keeps the last 5 changes -- default is 100.
 ```
 
 This prevents the history from growing indefinitely and ensures efficient memory usage.
+
+## Middleware
+
+Middleware allows you to customize how values are set in a **chunk**. For example, you can add **logging**, **validation**, or any custom behavior when a chunk's value changes.
+
+```typescript
+import { chunk } from "stunk";
+import { logger, nonNegativeValidator } from "stunk/middleware";
+
+// You can also create yours and pass it chunk as the second param
+
+// Use middleware for logging and validation
+const age = chunk(25, [logger, nonNegativeValidator]);
+
+age.set(30); // Logs: "Setting value: 30"
+age.set(-5); // ❌ Throws an error: "Value must be non-negative!"
+```
 
 ## Async State
 
@@ -157,43 +179,41 @@ type User = {
   email: string;
 };
 
-const userChunk = asyncChunk<User>(async () => {
+const user = asyncChunk<User>(async () => {
   const response = await fetch("/api/user");
   return response.json(); // TypeScript expects this to return User;
 });
 
 // Now userChunk is typed as AsyncChunk<User>, which means:
-userChunk.subscribe((state) => {
+user.subscribe((state) => {
   if (state.data) {
     // state.data is typed as User | null
     console.log(state.data.name); // TypeScript knows 'name' exists
-    console.log(state.data.id); // TypeScript knows 'id' exists
-    console.log(state.data.email); // TypeScript knows 'email' exists
     console.log(state.data.age); // ❌ TypeScript Error: Property 'age' does not exist
   }
 });
 
-userChunk.subscribe(({ loading, error, data }) => {
+user.subscribe(({ loading, error, data }) => {
   if (loading) console.log("Loading...");
   if (error) console.log("Error:", error);
   if (data) console.log("User:", data);
 });
 
 // Reload data
-await userChunk.reload();
+await user.reload();
 
 // Optimistic update
-userChunk.mutate((currentData) => ({
+user.mutate((currentData) => ({
   ...currentData,
-  name: "New Name",
+  name: "Fola",
 }));
 
 // The mutate function also enforces the User type
-userChunk.mutate(currentUser => ({
+user.mutate(currentUser => ({
   id: currentUser?.id ?? 0,
-  name: "New Name",
-  email: "new@email.com"
-  age: 25  // ❌ TypeScript Error: Object literal may only specify known properties
+  name: "Olamide",
+  email: "olamide@gmail.com"
+  age: 70  // ❌ TypeScript Error: Object literal may only specify known properties
 }));
 ```
 
@@ -224,18 +244,24 @@ interface Chunk<T> {
   reset(): void;
   destroy(): void;
 }
+```
 
+```typescript
 interface AsyncState<T> {
   loading: boolean;
   error: Error | null;
   data: T | null;
 }
+```
 
+```typescript
 interface AsyncChunk<T> extends Chunk<AsyncState<T>> {
   reload(): Promise<void>;
   mutate(mutator: (currentData: T | null) => T): void;
 }
+```
 
+```typescript
 interface ChunkWithHistory<T> extends Chunk<T> {
   undo: () => void;
   redo: () => void;
