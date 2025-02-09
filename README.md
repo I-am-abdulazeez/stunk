@@ -138,7 +138,8 @@ age.set(-5); // ❌ Throws an error: "Value must be non-negative!"
 ## Time Travel (Middleware)
 
 ```typescript
-import { chunk, withHistory } from "stunk";
+import { chunk } from "stunk";
+import { withHistory } from "stunk/midddleware";
 
 const counterChunk = withHistory(chunk(0));
 
@@ -167,6 +168,22 @@ const counter = withHistory(chunk(0), { maxHistory: 5 });
 ```
 
 This prevents the history from growing indefinitely and ensures efficient memory usage.
+
+## State Persistence
+
+Stunk provides a persistence middleware to automatically save state changes to storage (localStorage, sessionStorage, etc).
+
+```typescript
+import { chunk } from "stunk";
+import { withPersistence } from "stunk/middleware";
+
+const counterChunk = withPersistence(chunk({ count: 0 }), {
+  key: "counter-state",
+});
+
+// State automatically persists to localStorage
+counterChunk.set({ count: 1 });
+```
 
 ## Async State
 
@@ -230,8 +247,9 @@ user.mutate(currentUser => ({
 
 - `withHistory<T>(chunk: Chunk<T>, options: { maxHistory?: number }): ChunkWithHistory<T>`
 
-<!-- ### Persistance
-- `withPersistance<T>` -->
+### Persistance
+
+- `withPersistence<T>(baseChunk: Chunk<T>,options: PersistOptions<T>): Chunk<T>`
 
 ### Types
 
@@ -269,6 +287,15 @@ interface ChunkWithHistory<T> extends Chunk<T> {
   canRedo: () => boolean;
   getHistory: () => T[];
   clearHistory: () => void;
+}
+```
+
+```typescript
+interface PersistOptions<T> {
+  key: string; // Storage key
+  storage?: Storage; // Storage mechanism (default: localStorage)
+  serialize?: (value: T) => string; // Custom serializer
+  deserialize?: (value: string) => T; // Custom deserializer
 }
 ```
 
