@@ -12,7 +12,7 @@ A lightweight, reactive state management library for TypeScript/JavaScript appli
 - 🔄 **Reactive**: Automatic updates when state changes
 - 📦 **Batch Updates**: Group multiple state updates together
 - 🎯 **Atomic State Management**: Break down state into manageable chunks
-- 🎭 **State Selection**: Select and derive specific parts of state
+- 🎭 **State Selection**: Select and derive specific parts of the state
 - 🔄 **Async Support**: Handle async state with built-in loading and error states
 - 🔌 **Middleware Support**: Extend functionality with custom middleware
 - ⏱️ **Time Travel**: Undo/redo state changes
@@ -24,6 +24,8 @@ A lightweight, reactive state management library for TypeScript/JavaScript appli
 npm install stunk
 # or
 yarn add stunk
+# or
+pnpm install stunk
 ```
 
 ## Basic Usage
