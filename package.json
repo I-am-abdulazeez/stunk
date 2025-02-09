@@ -9,19 +9,25 @@
     "test": "jest --runInBand",
     "prepare": "npm run build"
   },
+  "testEnvironment": "jsdom",
   "keywords": [
     "state-management",
     "atomic-state",
     "framework-agnostic",
     "stunk",
     "state",
-    "chunk"
+    "chunk",
+    "react",
+    "React state management",
+    "Vue state management",
+    "management"
   ],
   "author": "AbdulAzeez",
   "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "ts-jest": "^29.2.5",
     "typescript": "^5.0.0"
   }
