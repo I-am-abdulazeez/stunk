@@ -1,3 +1,5 @@
+import { processMiddleware } from "../utils";
+
 export type Subscriber<T> = (newValue: T) => void;
 export type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
 
@@ -6,6 +8,8 @@ export interface Chunk<T> {
   get: () => T;
   /** Set a new value for the chunk. */
   set: (value: T) => void;
+  /** Update existing value efficiently */
+  update: (updater: (currentValue: T) => T) => void;
   /** Subscribe to changes in the chunk. Returns an unsubscribe function. */
   subscribe: (callback: Subscriber<T>) => () => void;
   /** Create a derived chunk based on this chunk's value. */
@@ -32,7 +36,6 @@ export function batch(callback: () => void) {
     }
   }
 }
-
 
 export function select<T, S>(sourceChunk: Chunk<T>, selector: (value: T) => S): Chunk<S> {
   const initialValue = selector(sourceChunk.get());
@@ -69,8 +72,6 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
   const subscribers = new Set<Subscriber<T>>();
   let isDirty = false;
 
-  const get = () => value;
-
   const notifySubscribers = () => {
     if (batchDepth > 0) {
       if (!isDirty) {
@@ -87,36 +88,27 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     }
   }
 
+  const get = () => value;
+
   const set = (newValue: T) => {
-    if (newValue === null || newValue === undefined) {
-      throw new Error("Value cannot be null or undefined.");
+    const processedValue = processMiddleware(newValue, middleware);
+
+    if (processedValue !== value) {
+      value = processedValue as T & {};
+      notifySubscribers();
+    }
+  };
+
+  const update = (updater: (currentValue: T) => T) => {
+    if (typeof updater !== 'function') {
+      throw new Error("Updater must be a function");
     }
 
-    let currentValue = newValue;
-    let index = 0;
+    const newValue = updater(value);
+    const processedValue = processMiddleware(newValue);
 
-    while (index < middleware.length) {
-      const currentMiddleware = middleware[index];
-      let nextCalled = false;
-      let nextValue: T | null = null;
-
-      currentMiddleware(currentValue, (val) => {
-        nextCalled = true;
-        nextValue = val;
-      });
-
-      if (!nextCalled) break;
-
-      if (nextValue === null || nextValue === undefined) {
-        throw new Error("Value cannot be null or undefined.");
-      }
-
-      currentValue = nextValue;
-      index++;
-    }
-
-    if (currentValue !== value) {
-      value = currentValue;
+    if (processedValue !== value) {
+      value = processedValue as T & {};
       notifySubscribers();
     }
   };
@@ -131,9 +123,7 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     subscribers.add(callback);
     callback(value);
 
-    return () => {
-      subscribers.delete(callback);
-    };
+    return () => subscribers.delete(callback);
   };
 
   const reset = () => {
@@ -166,5 +156,5 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     return derivedChunk;
   };
 
-  return { get, set, subscribe, derive, reset, destroy };
+  return { get, set, update, subscribe, derive, reset, destroy };
 }
