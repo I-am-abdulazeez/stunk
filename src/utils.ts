@@ -1,4 +1,4 @@
-import { chunk, Chunk } from "./core/core";
+import { chunk, Chunk, Middleware } from "./core/core";
 
 import { AsyncChunk } from "./core/asyncChunk";
 import { CombinedData, CombinedState, InferAsyncData } from "./core/types";
@@ -46,4 +46,35 @@ export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   });
 
   return combined;
+}
+
+export function processMiddleware<T>(initialValue: T, middleware: Middleware<T>[] = []): T {
+  if (initialValue === null || initialValue === undefined) {
+    throw new Error("Value cannot be null or undefined.");
+  }
+
+  let currentValue = initialValue;
+  let index = 0;
+
+  while (index < middleware.length) {
+    const currentMiddleware = middleware[index];
+    let nextCalled = false;
+    let nextValue: T | null = null;
+
+    currentMiddleware(currentValue, (val) => {
+      nextCalled = true;
+      nextValue = val;
+    });
+
+    if (!nextCalled) break;
+
+    if (nextValue === null || nextValue === undefined) {
+      throw new Error("Value cannot be null or undefined.");
+    }
+
+    currentValue = nextValue;
+    index++;
+  }
+
+  return currentValue;
 }
