@@ -1,8 +1,8 @@
 # Stunk
 
-- **Pronunciation**: _Stunk_ (A playful blend of "state" and "chunk")
-
 A lightweight, reactive state management library for TypeScript/JavaScript applications. Stunk combines atomic state management with powerful features like middleware, time travel, and async state handling.
+
+- **Pronunciation**: _Stunk_ (A playful blend of "state" and "chunk")
 
 **Stunk** is like dividing your jar into many smaller containers, each holding a single piece of state. These smaller containers are called **chunks**. Each **chunk** can be updated and accessed easily, and any part of your app can subscribe to changes in a chunk so it gets updated automatically.
 
