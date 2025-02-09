@@ -118,6 +118,23 @@ nameChunk.subscribe((name) => console.log("Name changed:", name));
 nameChunk.set("Olamide"); // ❌ this will throw an error, because it is a readonly.
 ```
 
+## Middleware
+
+Middleware allows you to customize how values are set in a **chunk**. For example, you can add **logging**, **validation**, or any custom behavior when a chunk's value changes.
+
+```typescript
+import { chunk } from "stunk";
+import { logger, nonNegativeValidator } from "stunk/middleware";
+
+// You can also create yours and pass it chunk as the second param
+
+// Use middleware for logging and validation
+const age = chunk(25, [logger, nonNegativeValidator]);
+
+age.set(30); // Logs: "Setting value: 30"
+age.set(-5); // ❌ Throws an error: "Value must be non-negative!"
+```
+
 ## Time Travel (Middleware)
 
 ```typescript
@@ -150,23 +167,6 @@ const counter = withHistory(chunk(0), { maxHistory: 5 });
 ```
 
 This prevents the history from growing indefinitely and ensures efficient memory usage.
-
-## Middleware
-
-Middleware allows you to customize how values are set in a **chunk**. For example, you can add **logging**, **validation**, or any custom behavior when a chunk's value changes.
-
-```typescript
-import { chunk } from "stunk";
-import { logger, nonNegativeValidator } from "stunk/middleware";
-
-// You can also create yours and pass it chunk as the second param
-
-// Use middleware for logging and validation
-const age = chunk(25, [logger, nonNegativeValidator]);
-
-age.set(30); // Logs: "Setting value: 30"
-age.set(-5); // ❌ Throws an error: "Value must be non-negative!"
-```
 
 ## Async State
 
