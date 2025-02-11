@@ -9,7 +9,7 @@ export function computed<T>(computeFn: () => T): Chunk<T> {
   const dependencies = new Set<Chunk<any>>();
 
   const trackingProxy = new Proxy({}, {
-    get(target, prop) {
+    get(_, prop) {
       if (currentComputation && prop === 'value') {
         const chunkValue = (this as any)[prop];
         if (isChunk(chunkValue)) {
