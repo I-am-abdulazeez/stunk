@@ -7,6 +7,17 @@ export function isValidChunkValue(value: any): boolean {
   return value !== null && value !== undefined;
 }
 
+export function isChunk<T>(value: any): value is Chunk<T> {
+  return value &&
+    typeof value.get === 'function' &&
+    typeof value.set === 'function' &&
+    typeof value.update === 'function' &&
+    typeof value.subscribe === 'function' &&
+    typeof value.derive === 'function' &&
+    typeof value.reset === 'function' &&
+    typeof value.destroy === 'function';
+}
+
 export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   chunks: T
 ): Chunk<{
