@@ -1,7 +1,7 @@
 {
   "name": "stunk",
   "version": "1.2.2",
-  "description": "Stunk - A framework-agnostic state management library implementing the Atomic State technique, utilizing chunk-based units for efficient state management.",
+  "description": "Stunk - A lightweight, framework-agnostic state management library using chunk-based units for efficient state updates.",
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
   "scripts": {
