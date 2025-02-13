@@ -171,6 +171,40 @@ const counter = withHistory(chunk(0), { maxHistory: 5 });
 
 This prevents the history from growing indefinitely and ensures efficient memory usage.
 
+## Computed
+
+Computed Chunks in Stunk allow you to create state derived from other chunks in a reactive way. Unlike derived chunks, computed chunks can depend on multiple sources, and they automatically recalculate when any of the source chunks change.
+
+- Multiple Dependencies: Can depend on multiple chunks.
+- Memoization: Only recalculates when dependencies change.
+- Type-Safe: Fully typed in TypeScript for safe data handling.
+- Reactive: Automatically updates subscribers when any dependency changes.
+
+```typescript
+import { chunk, computed } from "stunk";
+
+const firstNameChunk = chunk("John");
+const lastNameChunk = chunk("Doe");
+const ageChunk = chunk(30);
+// Create a computed chunk that depends on multiple sources
+
+const fullInfoChunk = computed(
+  [firstNameChunk, lastNameChunk, ageChunk],
+  (firstName, lastName, age) => ({
+    fullName: `${firstName} ${lastName}`,
+    isAdult: age >= 18,
+  })
+);
+
+firstNameChunk.set("Ola");
+ageChunk.set(10);
+
+console.log(fullInfoChunk.get());
+// ✅ { fullName: "Jane Doe", isAdult: true }
+```
+
+Computed chunks are ideal for scenarios where state depends on multiple sources or needs complex calculations. They ensure your application remains performant and maintainable.
+
 ## State Persistence
 
 Stunk provides a persistence middleware to automatically save state changes to storage (localStorage, sessionStorage, etc).
@@ -189,6 +223,16 @@ counterChunk.set({ count: 1 });
 
 ## Async State
 
+Async Chunks in Stunk are designed to manage asynchronous state seamlessly. They handle loading, error, and data states automatically, making it easier to work with APIs and other asynchronous operations.
+
+Key Features
+
+- Built-in Loading and Error States: Automatically manages loading, error, and data properties.
+
+- Type-Safe: Fully typed in TypeScript, ensuring safe data handling.
+
+- Optimistic Updates: Update state optimistically and revert if needed.
+
 ```typescript
 import { asyncChunk } from "stunk";
 
@@ -198,6 +242,7 @@ type User = {
   email: string;
 };
 
+// Create an Async Chunk
 const user = asyncChunk<User>(async () => {
   const response = await fetch("/api/user");
   return response.json(); // TypeScript expects this to return User;
@@ -212,14 +257,24 @@ user.subscribe((state) => {
   }
 });
 
+// Subscribe to state changes
 user.subscribe(({ loading, error, data }) => {
   if (loading) console.log("Loading...");
   if (error) console.log("Error:", error);
   if (data) console.log("User:", data);
 });
+```
 
+**Reloading Data**
+
+```typescript
 // Reload data
 await user.reload();
+```
+
+**Optimistic Updates**
+
+```typescript
 
 // Optimistic update
 user.mutate((currentData) => ({
