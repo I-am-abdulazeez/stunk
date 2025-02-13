@@ -1,4 +1,4 @@
-import { batch, chunk } from "../src/core/core";
+import { chunk } from "../src/core/core";
 import { withHistory } from "../src/middleware/history";
 
 
