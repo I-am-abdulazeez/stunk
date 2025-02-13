@@ -1,75 +1,71 @@
-import { isChunk } from "../utils";
-import { chunk, Chunk } from "./core";
+import { Chunk, chunk, batch } from "./core";
 
-export function computed<T>(computeFn: () => T): Chunk<T> {
-  // Track the currently executing computed function
-  let currentComputation: (() => T) | null = null;
+// Helper type to extract the value type from a Chunk
+type ChunkValue<T> = T extends Chunk<infer U> ? U : never;
 
-  // Set to track dependencies
-  const dependencies = new Set<Chunk<any>>();
+// Helper type to transform an array of Chunks into an array of their value types
+type DependencyValues<T extends Chunk<any>[]> = {
+  [K in keyof T]: T[K] extends Chunk<any> ? ChunkValue<T[K]> : never;
+};
 
-  const trackingProxy = new Proxy({}, {
-    get(_, prop) {
-      if (currentComputation && prop === 'value') {
-        const chunkValue = (this as any)[prop];
-        if (isChunk(chunkValue)) {
-          dependencies.add(chunkValue);
-          return chunkValue.get();
-        }
-      }
-      return (this as any)[prop];
-    },
-  });
+export interface Computed<T> extends Chunk<T> {
+  isDirty: () => boolean;
+  recompute: () => void;
+}
 
-  // Initial computation
-  let cachedValue: T;
+export function computed<TDeps extends Chunk<any>[], TResult>(
+  dependencies: [...TDeps],
+  computeFn: (...args: DependencyValues<TDeps>) => TResult
+): Computed<TResult> {
   let isDirty = true;
+  let cachedValue: TResult;
 
-  const computeValue = () => {
-    if (!isDirty) return cachedValue
+  // Get initial values from dependencies
+  const initialValues = dependencies.map(dep => dep.get()) as DependencyValues<TDeps>;
+  cachedValue = computeFn(...initialValues);
 
-    // Reset dependencies
-    dependencies.clear();
+  const computedChunk = chunk(cachedValue);
 
-    // Set the current computation context
-    currentComputation = computeFn;
+  // Function to recalculate the computed value
+  const recalculate = () => {
+    const values = dependencies.map(dep => dep.get()) as DependencyValues<TDeps>;
+    cachedValue = computeFn(...values);
+    computedChunk.set(cachedValue);
+    isDirty = false;
+  };
 
+  // Initial calculation
+  recalculate();
 
-    try {
-      // Compute with tracking
-      cachedValue = computeFn.call(trackingProxy);
-      isDirty = false;
-    } finally {
-      // Clear the current computation context
-      currentComputation = null;
-    }
-    return cachedValue;
-
-  }
-
-  // Create the computed chunk
-  const computedChunk = chunk(computeValue());
-
-  // Subscribe to all detected dependencies
-  dependencies.forEach(dep => {
-    dep.subscribe(() => {
+  // Subscribe to dependencies and batch updates
+  dependencies.forEach((dep, index) => {
+    dep.subscribe((newValue) => {
       isDirty = true;
-      computedChunk.set(computeValue());
+      batch(() => {
+        const values = dependencies.map((d, i) =>
+          i === index ? newValue : d.get()
+        ) as DependencyValues<TDeps>;
+        cachedValue = computeFn(...values);
+        computedChunk.set(cachedValue);
+      });
     });
   });
 
+  // Lazy evaluation
+  const originalGet = computedChunk.get;
+  computedChunk.get = () => {
+    if (isDirty) {
+      recalculate();
+    }
+    return originalGet();
+  };
+
   return {
     ...computedChunk,
-    get: () => {
-      if (isDirty) {
-        return computeValue();
-      }
-      return cachedValue;
-    },
-    // Prevent direct setting
+    isDirty: () => isDirty,
+    recompute: recalculate,
     set: () => {
       throw new Error('Cannot directly set a computed value');
     }
   };
-
 }
