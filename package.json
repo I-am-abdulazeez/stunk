@@ -1,6 +1,6 @@
 {
   "name": "stunk",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Stunk - A lightweight, framework-agnostic state management library using chunk-based units for efficient state updates.",
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
