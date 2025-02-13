@@ -17,53 +17,47 @@ export function computed<TDeps extends Chunk<any>[], TResult>(
   dependencies: [...TDeps],
   computeFn: (...args: DependencyValues<TDeps>) => TResult
 ): Computed<TResult> {
-  let isDirty = true;
-  let cachedValue: TResult;
+  let isDirty = false; // Initialized to false
+  let cachedValue: TResult = computeFn(...dependencies.map(d => d.get()) as DependencyValues<TDeps>);
 
-  // Get initial values from dependencies
-  const initialValues = dependencies.map(dep => dep.get()) as DependencyValues<TDeps>;
-  cachedValue = computeFn(...initialValues);
-
-  const computedChunk = chunk(cachedValue);
-
-  // Function to recalculate the computed value
   const recalculate = () => {
     const values = dependencies.map(dep => dep.get()) as DependencyValues<TDeps>;
     cachedValue = computeFn(...values);
-    computedChunk.set(cachedValue);
-    isDirty = false;
+    isDirty = false; // Reset to false after recomputation
   };
 
-  // Initial calculation
-  recalculate();
+  const computedChunk = chunk(cachedValue);
 
-  // Subscribe to dependencies and batch updates
-  dependencies.forEach((dep, index) => {
-    dep.subscribe((newValue) => {
-      isDirty = true;
-      batch(() => {
-        const values = dependencies.map((d, i) =>
-          i === index ? newValue : d.get()
-        ) as DependencyValues<TDeps>;
-        cachedValue = computeFn(...values);
-        computedChunk.set(cachedValue);
-      });
-    });
-  });
-
-  // Lazy evaluation
   const originalGet = computedChunk.get;
   computedChunk.get = () => {
     if (isDirty) {
       recalculate();
+      computedChunk.set(cachedValue); // Update the chunk value after recomputation
     }
-    return originalGet();
+    return cachedValue; // Return the cached value directly
   };
+
+  const lastValues = dependencies.map(dep => dep.get());
+
+  dependencies.forEach((dep, index) => {
+    dep.subscribe(() => {
+      const newValue = dep.get();
+      if (newValue !== lastValues[index] && !isDirty) {
+        lastValues[index] = newValue;
+        isDirty = true;
+      }
+    });
+  });
 
   return {
     ...computedChunk,
     isDirty: () => isDirty,
-    recompute: recalculate,
+    recompute: () => {
+      if (isDirty) {
+        recalculate();
+        computedChunk.set(cachedValue); // Update the chunk value after manual recomputation
+      }
+    },
     set: () => {
       throw new Error('Cannot directly set a computed value');
     }
