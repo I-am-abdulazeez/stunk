@@ -205,7 +205,7 @@ console.log(fullInfoChunk.get());
 
 Computed chunks are ideal for scenarios where state depends on multiple sources or needs complex calculations. They ensure your application remains performant and maintainable.
 
-### Advanced Examples
+## Advanced Examples
 
 Form Validation Example
 
