@@ -205,6 +205,76 @@ console.log(fullInfoChunk.get());
 
 Computed chunks are ideal for scenarios where state depends on multiple sources or needs complex calculations. They ensure your application remains performant and maintainable.
 
+### Advanced Examples
+
+Form Validation Example
+
+```typescript
+// With derive - single field validation
+const emailChunk = chunk("user@example.com");
+const isValidEmailChunk = emailChunk.derive((email) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+);
+
+// With computed - full form validation
+const usernameChunk = chunk("john");
+const emailChunk = chunk("user@example.com");
+const passwordChunk = chunk("pass123");
+const confirmPasswordChunk = chunk("pass123");
+
+const formValidationChunk = computed(
+  [usernameChunk, emailChunk, passwordChunk, confirmPasswordChunk],
+  (username, email, password, confirmPass) => ({
+    isUsernameValid: username.length >= 3,
+    isEmailValid: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+    isPasswordValid: password.length >= 6,
+    doPasswordsMatch: password === confirmPass,
+    isFormValid:
+      username.length >= 3 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
+      password.length >= 6 &&
+      password === confirmPass,
+  })
+);
+
+console.log(formValidationChunk.get());
+```
+
+Data Filtering Example
+
+```typescript
+// With derive - simple filter
+const postsChunk = chunk([
+  { id: 1, title: "Post 1", published: true },
+  { id: 2, title: "Post 2", published: false },
+]);
+
+const publishedPostsChunk = postsChunk.derive((posts) =>
+  posts.filter((post) => post.published)
+);
+
+// With computed - complex filtering with multiple conditions
+const postsChunk = chunk([
+  { id: 1, title: "Post 1", category: "tech", date: "2024-01-01" },
+]);
+const categoryFilterChunk = chunk("tech");
+const dateRangeChunk = chunk({ start: "2024-01-01", end: "2024-02-01" });
+const searchTermChunk = chunk("");
+
+const filteredPostsChunk = computed(
+  [postsChunk, categoryFilterChunk, dateRangeChunk, searchTermChunk],
+  (posts, category, dateRange, searchTerm) =>
+    posts.filter(
+      (post) =>
+        (!category || post.category === category) &&
+        (!dateRange ||
+          (post.date >= dateRange.start && post.date <= dateRange.end)) &&
+        (!searchTerm ||
+          post.title.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+);
+```
+
 ## State Persistence
 
 Stunk provides a persistence middleware to automatically save state changes to storage (localStorage, sessionStorage, etc).
