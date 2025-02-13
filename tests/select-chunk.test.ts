@@ -1,4 +1,5 @@
-import { chunk, select } from '../src/core/core';
+import { chunk } from '../src/core/core';
+import { select } from '../src/core/selector'
 
 describe('select', () => {
   it('should create a selector that initially returns the correct value', () => {
