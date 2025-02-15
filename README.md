@@ -73,30 +73,6 @@ count.set(10);
 // "Double count: 20"
 ```
 
-## Batch Updates
-
-Batch Update group multiple **state changes** together and notify **subscribers** only once at the end of the **batch**. This is particularly useful for **optimizing performance** when you need to **update multiple** chunks at the same time.
-
-```typescript
-import { chunk, batch } from "stunk";
-
-const nameChunk = chunk("Olamide");
-const ageChunk = chunk(30);
-
-batch(() => {
-  nameChunk.set("AbdulAzeez");
-  ageChunk.set(31);
-}); // Only one notification will be sent to subscribers
-
-// Nested batches are also supported
-batch(() => {
-  firstName.set("Olanrewaju");
-  batch(() => {
-    age.set(29);
-  });
-}); // Only one notification will be sent to subscribers
-```
-
 ## State Selection
 
 Efficiently access and react to specific state parts:
@@ -120,58 +96,29 @@ nameChunk.subscribe((name) => console.log("Name changed:", name));
 nameChunk.set("Olamide"); // ❌ this will throw an error, because it is a readonly.
 ```
 
-## Middleware
+## Batch Updates
 
-Middleware allows you to customize how values are set in a **chunk**. For example, you can add **logging**, **validation**, or any custom behavior when a chunk's value changes.
-
-```typescript
-import { chunk } from "stunk";
-import { logger, nonNegativeValidator } from "stunk/middleware";
-
-// You can also create yours and pass it chunk as the second param
-
-// Use middleware for logging and validation
-const age = chunk(25, [logger, nonNegativeValidator]);
-
-age.set(30); // Logs: "Setting value: 30"
-age.set(-5); // ❌ Throws an error: "Value must be non-negative!"
-```
-
-## Time Travel (Middleware)
-
-The withHistory middleware extends a chunk to support undo and redo functionality. This allows you to navigate back and forth between previous states, making it useful for implementing features like undo/redo, form history, and state time travel.
+Batch Update group multiple **state changes** together and notify **subscribers** only once at the end of the **batch**. This is particularly useful for **optimizing performance** when you need to **update multiple** chunks at the same time.
 
 ```typescript
-import { chunk } from "stunk";
-import { withHistory } from "stunk/midddleware";
+import { chunk, batch } from "stunk";
 
-const counterChunk = withHistory(chunk(0));
+const nameChunk = chunk("Olamide");
+const ageChunk = chunk(30);
 
-counterChunk.set(1);
-counterChunk.set(2);
+batch(() => {
+  nameChunk.set("AbdulAzeez");
+  ageChunk.set(31);
+}); // Only one notification will be sent to subscribers
 
-counterChunk.undo(); // Goes back to 1
-counterChunk.undo(); // Goes back to 0
-
-counterChunk.redo(); // Goes forward to 1
-
-counterChunk.canUndo(); // Returns `true` if there is a previous state to revert to..
-counterChunk.canRedo(); // Returns `true` if there is a next state to move to.
-
-counterChunk.getHistory(); // Returns an array of all the values in the history.
-
-counterChunk.clearHistory(); // Clears the history, keeping only the current value.
+// Nested batches are also supported
+batch(() => {
+  firstName.set("Olanrewaju");
+  batch(() => {
+    age.set(29);
+  });
+}); // Only one notification will be sent to subscribers
 ```
-
-**Example: Limiting History Size (Optional)**
-You can specify a max history size to prevent excessive memory usage.
-
-```ts
-const counter = withHistory(chunk(0), { maxHistory: 5 });
-// Only keeps the last 5 changes -- default is 100.
-```
-
-This prevents the history from growing indefinitely and ensures efficient memory usage.
 
 ## Computed
 
@@ -202,7 +149,7 @@ firstNameChunk.set("Ola");
 ageChunk.set(10);
 
 console.log(fullInfoChunk.get());
-// ✅ { fullName: "Jane Doe", isAdult: true }
+// ✅ { fullName: "Ola Doe", isAdult: true }
 ```
 
 Computed chunks are ideal for scenarios where state depends on multiple sources or needs complex calculations. They ensure your application remains performant and maintainable.
@@ -277,7 +224,61 @@ const filteredPostsChunk = computed(
 );
 ```
 
-## State Persistence
+## Middleware
+
+Middleware allows you to customize how values are set in a **chunk**. For example, you can add **logging**, **validation**, or any custom behavior when a chunk's value changes.
+
+```typescript
+import { chunk } from "stunk";
+import { logger, nonNegativeValidator } from "stunk/middleware";
+
+// You can also create yours and pass it chunk as the second param
+
+// Use middleware for logging and validation
+const age = chunk(25, [logger, nonNegativeValidator]);
+
+age.set(30); // Logs: "Setting value: 30"
+age.set(-5); // ❌ Throws an error: "Value must be non-negative!"
+```
+
+## Time Travel (Middleware)
+
+The withHistory middleware extends a chunk to support undo and redo functionality. This allows you to navigate back and forth between previous states, making it useful for implementing features like undo/redo, form history, and state time travel.
+
+```typescript
+import { chunk } from "stunk";
+import { withHistory } from "stunk/midddleware";
+
+const counterChunk = withHistory(chunk(0));
+
+counterChunk.set(1);
+counterChunk.set(2);
+
+counterChunk.undo(); // Goes back to 1
+counterChunk.undo(); // Goes back to 0
+
+counterChunk.redo(); // Goes forward to 1
+
+counterChunk.canUndo(); // Returns `true` if there is a previous state to revert to..
+counterChunk.canRedo(); // Returns `true` if there is a next state to move to.
+
+counterChunk.getHistory(); // Returns an array of all the values in the history.
+
+counterChunk.clearHistory(); // Clears the history, keeping only the current value.
+```
+
+**Example: Limiting History Size (Optional)**
+You can specify a max history size to prevent excessive memory usage.
+
+```ts
+const counter = withHistory(chunk(0), { maxHistory: 5 });
+// Only keeps the last 5 changes -- default is 100.
+```
+
+This prevents the history from growing indefinitely and ensures efficient memory usage.
+
+
+## State Persistence (Middleware)
 
 Stunk provides a persistence middleware to automatically save state changes to storage (localStorage, sessionStorage, etc).
 
