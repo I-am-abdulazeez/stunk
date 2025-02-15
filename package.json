@@ -1,7 +1,15 @@
 {
   "name": "stunk",
-  "version": "1.2.3",
-  "description": "Stunk - A lightweight, framework-agnostic state management library using chunk-based units for efficient state updates.",
+  "version": "1.2.4",
+  "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue, Svelte, and Vanilla JS/TS applications.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/I-am-abdulazeez/stunk"
+  },
+  "homepage": "https://github.com/I-am-abdulazeez/stunk#readme",
+  "bugs": {
+    "url": "https://github.com/I-am-abdulazeez/stunk/issues"
+  },
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
   "scripts": {
@@ -13,19 +21,33 @@
   "keywords": [
     "state-management",
     "atomic-state",
+    "chunk-based state",
     "framework-agnostic",
-    "stunk",
-    "state",
-    "chunk",
-    "react",
+    "reactive state library",
+    "frontend state management",
+    "JavaScript state management",
+    "TypeScript state management",
     "React state management",
     "Vue state management",
-    "management",
-    "TypeScript state management",
-    "reactive state library",
-    "frontend state management"
+    "Svelte state management",
+    "recoil alternative",
+    "jotai alternative",
+    "zustand alternative",
+    "lightweight state management",
+    "state container",
+    "reusable state",
+    "efficient state updates",
+    "performance optimization",
+    "stunk",
+    "chunk"
   ],
   "author": "AbdulAzeez",
+  "contributors": [
+    {
+      "name": "AbdulAzeez",
+      "url": "https://github.com/I-am-abdulazeez"
+    }
+  ],
   "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.5.14",
