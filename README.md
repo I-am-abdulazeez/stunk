@@ -139,6 +139,8 @@ age.set(-5); // ❌ Throws an error: "Value must be non-negative!"
 
 ## Time Travel (Middleware)
 
+The withHistory middleware extends a chunk to support undo and redo functionality. This allows you to navigate back and forth between previous states, making it useful for implementing features like undo/redo, form history, and state time travel.
+
 ```typescript
 import { chunk } from "stunk";
 import { withHistory } from "stunk/midddleware";
@@ -289,6 +291,27 @@ const counterChunk = withPersistence(chunk({ count: 0 }), {
 
 // State automatically persists to localStorage
 counterChunk.set({ count: 1 });
+```
+
+Using Different Storage
+
+```typescript
+// Use sessionStorage instead of localStorage
+const sessionStorageChunk = withPersistence(baseChunk, {
+  key: "counter",
+  storage: sessionStorage,
+});
+```
+
+Custom Serialization
+
+```typescript
+// Add custom serialization/deserialization
+const encryptedChunk = withPersistence(baseChunk, {
+  key: "encrypted-data",
+  serialize: (value) => encrypt(JSON.stringify(value)),
+  deserialize: (value) => JSON.parse(decrypt(value)),
+});
 ```
 
 ## Async State
