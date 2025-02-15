@@ -18,6 +18,18 @@ export function isChunk<T>(value: any): value is Chunk<T> {
     typeof value.destroy === 'function';
 }
 
+export function once<T>(fn: () => T): () => T {
+  let called = false;
+  let result: T;
+  return () => {
+    if (!called) {
+      result = fn();
+      called = true;
+    }
+    return result;
+  };
+};
+
 export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   chunks: T
 ): Chunk<{
