@@ -98,7 +98,7 @@ nameChunk.set("Olamide"); // ❌ this will throw an error, because it is a reado
 
 ## Batch Updates
 
-Batch Update group multiple **state changes** together and notify **subscribers** only once at the end of the **batch**. This is particularly useful for **optimizing performance** when you need to **update multiple** chunks at the same time.
+Batch Update group multiple **state changes** together and notify **subscribers** only once at the end of the `batch`. This is particularly useful for **optimizing performance** when you need to **update multiple** chunks at the same time.
 
 ```typescript
 import { chunk, batch } from "stunk";
@@ -152,7 +152,7 @@ console.log(fullInfoChunk.get());
 // ✅ { fullName: "Ola Doe", isAdult: true }
 ```
 
-Computed chunks are ideal for scenarios where state depends on multiple sources or needs complex calculations. They ensure your application remains performant and maintainable.
+`computed` chunks are ideal for scenarios where state depends on multiple sources or needs complex calculations. They ensure your application remains performant and maintainable.
 
 ## Advanced Examples
 
@@ -243,7 +243,7 @@ age.set(-5); // ❌ Throws an error: "Value must be non-negative!"
 
 ## Time Travel (Middleware)
 
-The withHistory middleware extends a chunk to support undo and redo functionality. This allows you to navigate back and forth between previous states, making it useful for implementing features like undo/redo, form history, and state time travel.
+The `withHistory` middleware extends a chunk to support undo and redo functionality. This allows you to navigate back and forth between previous states, making it useful for implementing features like undo/redo, form history, and state time travel.
 
 ```typescript
 import { chunk } from "stunk";
@@ -276,7 +276,6 @@ const counter = withHistory(chunk(0), { maxHistory: 5 });
 ```
 
 This prevents the history from growing indefinitely and ensures efficient memory usage.
-
 
 ## State Persistence (Middleware)
 
@@ -313,6 +312,35 @@ const encryptedChunk = withPersistence(baseChunk, {
   serialize: (value) => encrypt(JSON.stringify(value)),
   deserialize: (value) => JSON.parse(decrypt(value)),
 });
+```
+
+## Once
+
+`Once` utility is a function that ensures a given piece of code or a function is executed only once, no matter how many times it's called. It's typically used to optimize performance by preventing redundant calculations or event handlers from running multiple times.
+
+How It Works:
+
+- It wraps a function and tracks whether it has been called.
+- On the first call, it executes the function and saves the result.
+- On subsequent calls, it simply returns the saved result without executing the function again.
+
+```typescript
+const numbersChunk = chunk([1, 2, 3, 4, 5]);
+
+const expensiveCalculation = once(() => {
+  console.log("Expensive calculation running...");
+  return numbersChunk.get().reduce((sum, num) => sum + num, 0);
+});
+
+// Derived chunk using the once utility
+const totalChunk = numbersChunk.derive(() => expensiveCalculation());
+
+totalChunk.subscribe((total) => {
+  console.log("Total:", total);
+});
+
+// Even if numbersChunk updates, the expensive calculation runs only once
+numbersChunk.set([10, 20, 30, 40, 50]);
 ```
 
 ## Async State
@@ -383,6 +411,53 @@ user.mutate(currentUser => ({
   email: "olamide@gmail.com"
   age: 70  // ❌ TypeScript Error: Object literal may only specify known properties
 }));
+```
+
+## Combine Async Chunk
+
+`combineAsyncChunks` utility is used for managing multiple related async chunks.
+
+- Maintains reactivity through the entire chain
+- Preserves previous data during reloading
+- Proper error propagation
+
+```typescript
+// Basic fetch
+const userChunk = asyncChunk(async () => {
+  const response = await fetch("/api/user");
+  return response.json();
+});
+
+// With options
+const postsChunk = asyncChunk(
+  async () => {
+    const response = await fetch("/api/posts");
+    return response.json();
+  },
+  {
+    initialData: [],
+    retryCount: 3,
+    retryDelay: 2000,
+    onError: (error) => console.error("Failed to fetch posts:", error),
+  }
+);
+
+// Combining chunks
+const profileChunk = combineAsyncChunks({
+  user: userChunk,
+  posts: postsChunk,
+});
+
+// Reactive updates
+profileChunk.subscribe(({ loading, error, data }) => {
+  if (loading) {
+    showLoadingSpinner();
+  } else if (error) {
+    showError(error);
+  } else {
+    updateUI(data);
+  }
+});
 ```
 
 ## API Reference
