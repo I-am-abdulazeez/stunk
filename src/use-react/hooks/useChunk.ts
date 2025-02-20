@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import type { Chunk } from "../../core/core";
+import { chunk, type Chunk } from "../../core/core";
 
-export function useChunk<T>(chunk: Chunk<T>): [T, (value: T) => void] {
+export function useChunk<T>(chunk: Chunk<T>): T {
   const [value, setValue] = useState<T>(chunk.get());
 
   useEffect(() => {
@@ -12,5 +12,5 @@ export function useChunk<T>(chunk: Chunk<T>): [T, (value: T) => void] {
     return unsubscribe;
   }, [chunk]);
 
-  return [value, chunk.set];
+  return value;
 }
