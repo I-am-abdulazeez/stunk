@@ -12,6 +12,20 @@
   },
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./middleware": {
+      "import": "./dist/middleware/index.js",
+      "types": "./dist/types/middleware/index.d.ts"
+    },
+    "./react": {
+      "import": "./dist/use-react/index.js",
+      "types": "./dist/types/use-react/index.d.ts"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "test": "jest --runInBand",
@@ -51,9 +65,15 @@
   "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.5.14",
+    "@types/react": "^19.0.10",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "ts-jest": "^29.2.5",
     "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
   }
 }
