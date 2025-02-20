@@ -6,10 +6,17 @@
     "outDir": "./dist",
     "declaration": true,
     "declarationDir": "./dist/types",
+    "baseUrl": "./src",
+    "paths": {
+      "stunk/middleware": ["middleware"],
+      "stunk/react": ["use-react"]
+    },
     "typeRoots": ["./node_modules/@types", "./types"],
     "strict": true,
+    "skipLibCheck": true,
+    "jsx": "react",
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src/**/*", "types/stunk.d.ts"],
   "exclude": ["node_modules", "dist"]
