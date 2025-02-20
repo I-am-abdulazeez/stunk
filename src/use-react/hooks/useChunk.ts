@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { chunk, type Chunk } from "../../core/core";
+import type { Chunk } from "../../core/core";
 
 export function useChunk<T>(chunk: Chunk<T>): T {
   const [value, setValue] = useState<T>(chunk.get());
