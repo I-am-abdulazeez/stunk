@@ -1,16 +1,33 @@
-import { useState, useEffect } from "react";
-import type { Chunk } from "../../core/core";
+import { useState, useEffect, useCallback } from "react";
 
-export function useChunk<T>(chunk: Chunk<T>): T {
-  const [value, setValue] = useState<T>(chunk.get());
+import type { Chunk } from "../../core/core";
+import { select } from "../../core/selector";
+
+export function useChunk<T, S = T>(
+  chunk: Chunk<T>,
+  selector?: (value: T) => S
+) {
+  const selectedChunk = selector ? select(chunk, selector) : chunk;
+
+  const [state, setState] = useState<S>(() => selectedChunk.get() as S);
 
   useEffect(() => {
-    const unsubscribe = chunk.subscribe((newValue) => {
-      setValue(newValue);
+    const unsubscribe = selectedChunk.subscribe((newValue) => {
+      setState(() => newValue as S);
     });
+    return () => unsubscribe();
+  }, [selectedChunk]);
 
-    return unsubscribe;
+  const set = useCallback((value: T) => {
+    chunk.set(value);
   }, [chunk]);
 
-  return value;
+  const update = useCallback(
+    (updater: (currentValue: T) => T) => {
+      chunk.update(updater);
+    },
+    [chunk]
+  );
+
+  return [state, set, update] as const;
 }
