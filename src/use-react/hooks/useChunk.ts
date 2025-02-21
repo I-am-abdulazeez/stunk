@@ -29,5 +29,13 @@ export function useChunk<T, S = T>(
     [chunk]
   );
 
-  return [state, set, update] as const;
+  const reset = useCallback(() => {
+    chunk.reset();
+  }, [chunk]);
+
+  const destroy = useCallback(() => {
+    chunk.destroy();
+  }, [chunk]);
+
+  return [state, set, update, reset, destroy] as const;
 }
