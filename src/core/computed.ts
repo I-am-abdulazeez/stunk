@@ -1,10 +1,10 @@
 import { Chunk, chunk } from "./core";
 
 // Helper type to extract the value type from a Chunk
-type ChunkValue<T> = T extends Chunk<infer U> ? U : never;
+export type ChunkValue<T> = T extends Chunk<infer U> ? U : never;
 
 // Helper type to transform an array of Chunks into an array of their value types
-type DependencyValues<T extends Chunk<any>[]> = {
+export type DependencyValues<T extends Chunk<any>[]> = {
   [K in keyof T]: T[K] extends Chunk<any> ? ChunkValue<T[K]> : never;
 };
 
