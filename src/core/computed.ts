@@ -1,4 +1,4 @@
-import { Chunk, chunk, batch } from "./core";
+import { Chunk, chunk } from "./core";
 
 // Helper type to extract the value type from a Chunk
 type ChunkValue<T> = T extends Chunk<infer U> ? U : never;
