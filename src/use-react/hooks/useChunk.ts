@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 
-import type { Chunk } from "../../core/core";
-import { select } from "../../core/selector";
+import { select } from "core/selector";
 
+import type { Chunk } from "core/core";
 
 /**
  * A lightweight hook that subscribes to a chunk and returns its current value, along with setters, selector, reset and destroy.
