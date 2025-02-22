@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-import { AsyncChunk, AsyncState } from "core/asyncChunk";
+import { AsyncChunk, AsyncState } from "../../core/asyncChunk";
 
 /**
  * A hook that handles asynchronous state with built-in reactivity.
