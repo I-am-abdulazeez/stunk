@@ -1,6 +1,6 @@
 import { useChunk } from "./useChunk";
 
-import type { Chunk } from "core/core";
+import type { Chunk } from "../../core/core";
 
 /**
  * A lightweight hook that subscribes to a chunk and returns only its current value.
