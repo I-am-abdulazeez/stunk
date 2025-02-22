@@ -3,6 +3,11 @@ import { useState, useEffect, useMemo } from "react";
 import { Chunk } from "../../core/core";
 import { computed, DependencyValues } from "../../core/computed";
 
+
+/**
+ * A hook that computes a value based on multiple chunks.
+ * Automatically re-computes when any dependency changes.
+ */
 export function useComputed<TDeps extends Chunk<any>[], TResult>(
   dependencies: [...TDeps],
   computeFn: (...args: DependencyValues<TDeps>) => TResult
