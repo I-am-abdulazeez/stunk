@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-import type { Chunk } from "core/core";
+import type { Chunk } from "../../core/core";
 
 /**
  * Hook to read values from multiple chunks at once.
