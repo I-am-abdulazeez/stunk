@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { useChunkValue } from "./useChunkValue";
 
-import type { Chunk } from "core/core";
+import type { Chunk } from "../../core/core";
 
 /**
  * A hook that subscribes to a specific property of a chunk.
