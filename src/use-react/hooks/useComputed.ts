@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 
-import { Chunk } from "../../core/core";
-import { computed, DependencyValues } from "../../core/computed";
-
+import { computed, DependencyValues } from "core/computed";
+import type { Chunk } from "core/core";
 
 /**
  * A hook that computes a value based on multiple chunks.
