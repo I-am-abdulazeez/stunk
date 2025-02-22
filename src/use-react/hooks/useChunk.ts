@@ -3,6 +3,12 @@ import { useState, useEffect, useCallback } from "react";
 import type { Chunk } from "../../core/core";
 import { select } from "../../core/selector";
 
+
+/**
+ * A lightweight hook that subscribes to a chunk and returns its current value, along with setters, selector, reset and destroy.
+ * Ensures reactivity and prevents unnecessary re-renders.
+ */
+
 export function useChunk<T, S = T>(
   chunk: Chunk<T>,
   selector?: (value: T) => S
