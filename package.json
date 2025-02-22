@@ -1,6 +1,6 @@
 {
   "name": "stunk",
-  "version": "1.3.5",
+  "version": "1.4.5",
   "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue, Svelte, and Vanilla JS/TS applications.",
   "repository": {
     "type": "git",
