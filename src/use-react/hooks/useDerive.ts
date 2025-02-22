@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { useChunk } from "./useChunk";
-import type { Chunk } from "../../core/core";
+import type { Chunk } from "core/core";
 
 /**
  * A hook for creating a read-only derived value from a chunk.
