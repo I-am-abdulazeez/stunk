@@ -11,19 +11,19 @@
     "url": "https://github.com/I-am-abdulazeez/stunk/issues"
   },
   "main": "dist/index.js",
-  "types": "dist/types/index.d.ts",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "types": "./dist/types/index.d.ts"
+      "types": "./dist/index.d.ts"
     },
     "./middleware": {
       "import": "./dist/middleware/index.js",
-      "types": "./dist/types/middleware/index.d.ts"
+      "types": "./dist/middleware/index.d.ts"
     },
     "./react": {
       "import": "./dist/use-react/index.js",
-      "types": "./dist/types/use-react/index.d.ts"
+      "types": "./dist/use-react/index.d.ts"
     }
   },
   "scripts": {
