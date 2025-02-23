@@ -8,8 +8,8 @@
     "declarationDir": "./dist",
     "baseUrl": "./src",
     "paths": {
-      "stunk/middleware": ["dist/middleware"],
-      "stunk/react": ["dist/use-react"]
+      "stunk/middleware": ["middleware"],
+      "stunk/react": ["use-react"]
     },
     "typeRoots": ["./node_modules/@types", "./types"],
     "strict": true,
