@@ -6,10 +6,8 @@ export type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
 export interface Chunk<T> {
   /** Get the current value of the chunk. */
   get: () => T;
-  /** Set a new value for the chunk. */
-  set: (value: T) => void;
-  /** Update existing value efficiently */
-  update: (updater: (currentValue: T) => T) => void;
+  /** Set a new value for the chunk & Update existing value efficiently. */
+  set: (newValueOrUpdater: T | ((currentValue: T) => T)) => void;
   /** Subscribe to changes in the chunk. Returns an unsubscribe function. */
   subscribe: (callback: Subscriber<T>) => () => void;
   /** Create a derived chunk based on this chunk's value. */
@@ -64,22 +62,18 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
 
   const get = () => value;
 
-  const set = (newValue: T) => {
+  const set = (newValueOrUpdater: T | ((currentValue: T) => T)) => {
+    let newValue: T;
+
+    if (typeof newValueOrUpdater === 'function') {
+      // Handle updater function
+      newValue = (newValueOrUpdater as (currentValue: T) => T)(value);
+    } else {
+      // Handle direct value assignment
+      newValue = newValueOrUpdater;
+    }
+
     const processedValue = processMiddleware(newValue, middleware);
-
-    if (processedValue !== value) {
-      value = processedValue as T & {};
-      notifySubscribers();
-    }
-  };
-
-  const update = (updater: (currentValue: T) => T) => {
-    if (typeof updater !== 'function') {
-      throw new Error("Updater must be a function");
-    }
-
-    const newValue = updater(value);
-    const processedValue = processMiddleware(newValue);
 
     if (processedValue !== value) {
       value = processedValue as T & {};
@@ -130,5 +124,5 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     return derivedChunk;
   };
 
-  return { get, set, update, subscribe, derive, reset, destroy };
+  return { get, set, subscribe, derive, reset, destroy };
 }
