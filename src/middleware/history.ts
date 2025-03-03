@@ -39,13 +39,22 @@ export function withHistory<T>(
   const historyChunk: ChunkWithHistory<T> = {
     ...baseChunk,
 
-    set: (newValue: T) => {
+    set: (newValueOrUpdater: T | ((currentValue: T) => T)) => {
       if (isHistoryAction) {
-        baseChunk.set(newValue);
+        baseChunk.set(newValueOrUpdater);
         return;
       }
 
-      // Remove any future history when setting a new value
+      // Process the value or updater function
+      let newValue: T;
+      if (typeof newValueOrUpdater === 'function') {
+        // Get current value and apply the updater function
+        const currentValue = baseChunk.get();
+        newValue = (newValueOrUpdater as ((currentValue: T) => T))(currentValue);
+      } else {
+        // Use directly as the new value
+        newValue = newValueOrUpdater;
+      }
       history.splice(currentIndex + 1);
       history.push(newValue);
 
