@@ -3,7 +3,7 @@ import { chunk } from '../src/core/core';
 describe('chunk update', () => {
   it('should update value using updater function', () => {
     const store = chunk(5);
-    store.update(value => value + 1);
+    store.set(value => value + 1);
     expect(store.get()).toBe(6);
   });
 
@@ -30,18 +30,18 @@ describe('chunk update', () => {
     subscriber.mockReset();
 
     // Update to same value
-    store.update(value => value);
+    store.set(value => value);
     expect(subscriber).not.toHaveBeenCalled();
 
     // Update to new value
-    store.update(value => value + 1);
+    store.set(value => value + 1);
     expect(subscriber).toHaveBeenCalledWith(6);
     expect(subscriber).toHaveBeenCalledTimes(1);
   });
 
   it('should handle complex update logic', () => {
     const store = chunk(5);
-    store.update(value => {
+    store.set(value => {
       if (value > 3) {
         return value * 2;
       }
@@ -58,7 +58,7 @@ describe('chunk update', () => {
 
     const store = chunk<User>({ name: 'John', age: 30 });
 
-    store.update(user => ({
+    store.set(user => ({
       ...user,
       age: user.age + 1
     }));
