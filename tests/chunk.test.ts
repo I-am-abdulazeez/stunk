@@ -5,6 +5,8 @@ test("Chunk should get and set values correctly", () => {
   expect(chunky.get()).toBe(0);
   chunky.set(10);
   expect(chunky.get()).toBe(10);
+  chunky.set((prev) => prev + 1);
+  expect(chunky.get()).toBe(11);
 });
 
 test("Chunk should notify subscribers on value change", () => {
