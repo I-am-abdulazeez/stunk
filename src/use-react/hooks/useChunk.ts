@@ -24,16 +24,9 @@ export function useChunk<T, S = T>(
     return () => unsubscribe();
   }, [selectedChunk]);
 
-  const set = useCallback((value: T) => {
-    chunk.set(value);
+  const set = useCallback((valueOrUpdater: T | ((currentValue: T) => T)) => {
+    chunk.set(valueOrUpdater);
   }, [chunk]);
-
-  const update = useCallback(
-    (updater: (currentValue: T) => T) => {
-      chunk.update(updater);
-    },
-    [chunk]
-  );
 
   const reset = useCallback(() => {
     chunk.reset();
@@ -43,5 +36,5 @@ export function useChunk<T, S = T>(
     chunk.destroy();
   }, [chunk]);
 
-  return [state, set, update, reset, destroy] as const;
+  return [state, set, reset, destroy] as const;
 }
