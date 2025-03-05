@@ -1,6 +1,6 @@
 # Stunk
 
-A lightweight, reactive state management library for TypeScript/JavaScript applications. Stunk combines atomic state management with powerful features like middleware, time travel, and async state handling.
+Stunk is a lightweight, framework-agnostic state management library built on atomic state principles. It simplifies state management by breaking state into manageable "chunks", ensuring efficient updates and reactivity.
 
 - **Pronunciation**: _Stunk_ (A playful blend of "state" and "chunk")
 
