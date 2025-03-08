@@ -6,7 +6,7 @@ import { AsyncChunk } from "../../core/asyncChunk";
  * A hook that handles asynchronous state with built-in reactivity.
  * Provides loading, error, and data states.
  */
-export function useAsyncChunk<>(asyncChunk: AsyncChunk<T, E>) {
+export function useAsyncChunk<T, E>(asyncChunk: AsyncChunk<T, E>) {
   const loading = ref(true);
   const data = ref<T | null>()
   const error = ref<E | null>()
