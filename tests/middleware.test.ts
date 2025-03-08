@@ -4,10 +4,10 @@ import { logger } from "../src/middleware/logger";
 import { nonNegativeValidator } from "../src/middleware/validator";
 
 describe("Middleware Tests", () => {
-  let consoleSpy: ReturnType<ReturnType<typeof vi.spyOn>['getMockImplementation']>;
+  let consoleSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    consoleSpy = vi.spyOn(console, "log").getMockImplementation();
+    consoleSpy = vi.spyOn(console, "log");
   });
 
   afterEach(() => {

@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from 'vitest';
 import { chunk } from '../src/core/core';
 import { select } from '../src/core/selector'
 
@@ -21,7 +22,7 @@ describe('select', () => {
     const source = chunk({ name: 'John', age: 25 });
     const nameSelector = select(source, user => user.name);
 
-    const subscriber = jest.fn();
+    const subscriber = vi.fn();
     nameSelector.subscribe(subscriber);
 
     // Reset the mock to ignore initial call
@@ -37,7 +38,7 @@ describe('select', () => {
     const source = chunk({ name: 'John', age: 25 });
     const nameSelector = select(source, user => user.name);
 
-    const subscriber = jest.fn();
+    const subscriber = vi.fn();
     nameSelector.subscribe(subscriber);
 
     // Reset the mock to ignore initial call
@@ -94,7 +95,7 @@ describe('select', () => {
     const source = chunk({ name: 'John', age: 25 });
     const nameSelector = select(source, user => user.name);
 
-    const subscriber = jest.fn();
+    const subscriber = vi.fn();
     const unsubscribe = nameSelector.subscribe(subscriber);
 
     // Reset mock to ignore initial call
@@ -112,8 +113,8 @@ describe('select', () => {
     const nameSelector = select(source, user => user.name);
     const ageSelector = select(source, user => user.age);
 
-    const nameSubscriber = jest.fn();
-    const ageSubscriber = jest.fn();
+    const nameSubscriber = vi.fn();
+    const ageSubscriber = vi.fn();
 
     nameSelector.subscribe(nameSubscriber);
     ageSelector.subscribe(ageSubscriber);

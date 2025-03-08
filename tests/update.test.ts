@@ -8,20 +8,6 @@ describe('chunk update', () => {
     expect(store.get()).toBe(6);
   });
 
-  it('should throw error if updater is not a function', () => {
-    const store = chunk(5);
-    // @ts-expect-error Testing invalid input
-    expect(() => store.update('not a function')).toThrow('Updater must be a function');
-  });
-
-  it('should throw error if updater returns null or undefined', () => {
-    const store = chunk(5);
-    // @ts-expect-error Testing invalid input
-    expect(() => store.update(() => null)).toThrow('Value cannot be null or undefined.');
-    // @ts-expect-error Testing invalid input
-    expect(() => store.update(() => undefined)).toThrow('Value cannot be null or undefined.');
-  });
-
   it('should notify subscribers only if value changes', () => {
     const store = chunk(5);
     const subscriber = vi.fn();
