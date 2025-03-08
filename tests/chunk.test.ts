@@ -1,3 +1,4 @@
+import { test, expect, describe, it, beforeEach, afterAll, vi } from "vitest";
 import { chunk } from "../src/core/core";
 
 test("Chunk should get and set values correctly", () => {
@@ -11,7 +12,7 @@ test("Chunk should get and set values correctly", () => {
 
 test("Chunk should notify subscribers on value change", () => {
   const chunky = chunk<number>(0);
-  const callback = jest.fn();
+  const callback = vi.fn();
   const unsubscribe = chunky.subscribe(callback); // Store unsubscribe function
 
   chunky.set(5);
@@ -25,8 +26,8 @@ test("Chunk should notify subscribers on value change", () => {
 
 test("Chunk should notify multiple subscribers correctly", () => {
   const chunky = chunk<number>(0);
-  const callback1 = jest.fn();
-  const callback2 = jest.fn();
+  const callback1 = vi.fn();
+  const callback2 = vi.fn();
 
   const unsubscribe1 = chunky.subscribe(callback1);
   const unsubscribe2 = chunky.subscribe(callback2);
@@ -44,7 +45,7 @@ test("Chunk should notify multiple subscribers correctly", () => {
 
 test("Chunk should allow unsubscribing from updates", () => {
   const chunky = chunk<number>(0);
-  const callback = jest.fn();
+  const callback = vi.fn();
   const unsubscribe = chunky.subscribe(callback);
 
   // Initial subscription call
@@ -65,8 +66,8 @@ describe("Chunk Derivation", () => {
     const count = chunk(5);
     const doubleCount = count.derive((value) => value * 2);
 
-    const countSpy = jest.fn();
-    const doubleCountSpy = jest.fn();
+    const countSpy = vi.fn();
+    const doubleCountSpy = vi.fn();
 
     // Subscribe to both chunks
     count.subscribe(countSpy);
@@ -90,7 +91,7 @@ describe("Chunk Derivation", () => {
     const count = chunk(5);
     const doubleCount = count.derive((value) => value * 2);
 
-    const doubleCountSpy = jest.fn();
+    const doubleCountSpy = vi.fn();
 
     // Subscribe to the derived chunk
     doubleCount.subscribe(doubleCountSpy);
@@ -115,8 +116,8 @@ test("Chunk should reset to initial value", () => {
 describe('Chunk destroy', () => {
   const countChunk = chunk(0);
   const anotherChunk = chunk(0);
-  const countCallback = jest.fn();
-  const anotherCallback = jest.fn();
+  const countCallback = vi.fn();
+  const anotherCallback = vi.fn();
 
   beforeEach(() => {
     // Reset the mocks
@@ -166,8 +167,8 @@ describe('Chunk destroy', () => {
     anotherChunk.destroy();
 
     // Subscribe new callbacks after destroy
-    const newCountCallback = jest.fn();
-    const newAnotherCallback = jest.fn();
+    const newCountCallback = vi.fn();
+    const newAnotherCallback = vi.fn();
 
     const newCountUnsubscribe = countChunk.subscribe(newCountCallback);
     const newAnotherUnsubscribe = anotherChunk.subscribe(newAnotherCallback);

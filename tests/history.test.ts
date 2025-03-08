@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from "vitest";
 import { chunk } from "../src/core/core";
 import { withHistory } from "../src/middleware/history";
 
@@ -17,7 +18,7 @@ describe('Chunk with History', () => {
   it('should handle undo and redo operations', () => {
     const baseChunk = chunk(0);
     const historyChunk = withHistory(baseChunk);
-    const callback = jest.fn();
+    const callback = vi.fn();
 
     historyChunk.subscribe(callback);
     callback.mockClear(); // Clear initial subscription call

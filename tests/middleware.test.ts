@@ -1,17 +1,18 @@
+import { describe, beforeEach, vi, afterEach, test, expect } from "vitest";
 import { chunk } from "../src/core/core";
 import { logger } from "../src/middleware/logger";
 import { nonNegativeValidator } from "../src/middleware/validator";
 
 describe("Middleware Tests", () => {
-  let consoleSpy: jest.SpyInstance;
+  let consoleSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    consoleSpy = jest.spyOn(console, "log").mockImplementation();
+    consoleSpy = vi.spyOn(console, "log");
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();  // Restores all spies
-    jest.clearAllTimers();    // Clears any lingering timers
+    vi.restoreAllMocks();  // Restores all spies
+    vi.clearAllTimers();    // Clears any lingering timers
   });
 
   test("Logger middleware should log updates", () => {
@@ -24,7 +25,6 @@ describe("Middleware Tests", () => {
       expect(consoleSpy).toHaveBeenCalledWith("Setting value:", 5);
     } finally {
       unsubscribe(); // Ensure cleanup after test
-      consoleSpy.mockRestore();
     }
   });
 

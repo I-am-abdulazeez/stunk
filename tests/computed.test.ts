@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { chunk } from '../src/core/core';
 import { computed } from '../src/core/computed';
 
