@@ -1,7 +1,8 @@
 /**
- * @jest-environment jsdom
+ * @vi-environment jsdom
  */
 
+import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { chunk } from '../src/core/core';
 import { withPersistence } from "../src/middleware/persistence";
 
@@ -30,8 +31,8 @@ describe('withPersistence', () => {
 
   it('should use custom storage', () => {
     const mockStorage = {
-      getItem: jest.fn(),
-      setItem: jest.fn(),
+      getItem: vi.fn(),
+      setItem: vi.fn(),
     };
 
     const baseChunk = chunk({ count: 0 });

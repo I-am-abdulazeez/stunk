@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from 'vitest';
 import { chunk } from '../src/core/core';
 
 describe('chunk update', () => {
@@ -23,7 +24,7 @@ describe('chunk update', () => {
 
   it('should notify subscribers only if value changes', () => {
     const store = chunk(5);
-    const subscriber = jest.fn();
+    const subscriber = vi.fn();
     store.subscribe(subscriber);
 
     // Reset the mock to ignore initial subscription call
