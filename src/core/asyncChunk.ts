@@ -1,13 +1,13 @@
 import { chunk, Chunk } from "./core";
 import { AsyncChunkOpt } from "./types";
 
-export interface AsyncState<T, E extends Error> {
+export interface AsyncState<T> {
   loading: boolean;
-  error: E | null;
+  error: Error | null;
   data: T | null;
 }
 
-export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState<T, E>> {
+export interface AsyncChunk<T> extends Chunk<AsyncState<T>> {
   /**
    * Reload the data from the source.
    */
@@ -22,7 +22,7 @@ export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState
   reset: () => void;
 }
 
-export function asyncChunk<T, E extends Error = Error>(fetcher: () => Promise<T>, options: AsyncChunkOpt<T, E> = {}): AsyncChunk<T, E> {
+export function asyncChunk<T>(fetcher: () => Promise<T>, options: AsyncChunkOpt<T> = {}): AsyncChunk<T> {
   const {
     initialData = null,
     onError,
@@ -30,7 +30,7 @@ export function asyncChunk<T, E extends Error = Error>(fetcher: () => Promise<T>
     retryDelay = 1000,
   } = options;
 
-  const initialState: AsyncState<T, E> = {
+  const initialState: AsyncState<T> = {
     loading: true,
     error: null,
     data: initialData,
@@ -50,10 +50,11 @@ export function asyncChunk<T, E extends Error = Error>(fetcher: () => Promise<T>
         return fetchData(retries - 1);
       }
 
-      baseChunk.set({ loading: false, error: error as E, data: baseChunk.get().data });
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      baseChunk.set({ loading: false, error: errorObj, data: baseChunk.get().data });
 
       if (onError) {
-        onError(error as E);
+        onError(errorObj);
       }
 
     }
@@ -62,7 +63,7 @@ export function asyncChunk<T, E extends Error = Error>(fetcher: () => Promise<T>
   // Initial fetch
   fetchData();
 
-  const asyncChunkInstance: AsyncChunk<T, E> = {
+  const asyncChunkInstance: AsyncChunk<T> = {
     ...baseChunk,
     reload: async () => {
       await fetchData();
