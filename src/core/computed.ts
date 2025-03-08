@@ -8,58 +8,53 @@ export type DependencyValues<T extends Chunk<any>[]> = {
   [K in keyof T]: T[K] extends Chunk<any> ? ChunkValue<T[K]> : never;
 };
 
-export interface Computed<T> extends Chunk<T> {
-  isDirty: () => boolean;
-  recompute: () => void;
-}
+export let activeComp: Set<Chunk<any>> | undefined;
+
+export interface Computed<T> extends Chunk<T> { }
 
 export function computed<TDeps extends Chunk<any>[], TResult>(
-  dependencies: [...TDeps],
-  computeFn: (...args: DependencyValues<TDeps>) => TResult
+  computeFn: () => TResult extends Promise<any> ? never : TResult
 ): Computed<TResult> {
-  let isDirty = false; // Initialized to false
-  let cachedValue: TResult = computeFn(...dependencies.map(d => d.get()) as DependencyValues<TDeps>);
-
-  const recalculate = () => {
-    const values = dependencies.map(dep => dep.get()) as DependencyValues<TDeps>;
-    cachedValue = computeFn(...values);
-    isDirty = false; // Reset to false after recomputation
-  };
-
+  const dependencies: Set<Chunk<any>> = new Set()
+  activeComp = dependencies
+  let cachedValue: TResult = computeFn();
+  activeComp = undefined
   const computedChunk = chunk(cachedValue);
 
-  const originalGet = computedChunk.get;
-  computedChunk.get = () => {
-    if (isDirty) {
-      recalculate();
-      computedChunk.set(cachedValue); // Update the chunk value after recomputation
-    }
-    return cachedValue; // Return the cached value directly
-  };
+  const recalculate = runAfterTick(() => {
+    const newValue = computeFn();
+    if (newValue !== cachedValue) {
+      computedChunk.set(newValue);
+      cachedValue = newValue
+    };
+  })
 
-  const lastValues = dependencies.map(dep => dep.get());
-
-  dependencies.forEach((dep, index) => {
-    dep.subscribe(() => {
-      const newValue = dep.get();
-      if (newValue !== lastValues[index] && !isDirty) {
-        lastValues[index] = newValue;
-        isDirty = true;
-      }
-    });
-  });
+  dependencies.forEach((chunk) => {
+    chunk.subscribe(recalculate)
+  })
 
   return {
     ...computedChunk,
-    isDirty: () => isDirty,
-    recompute: () => {
-      if (isDirty) {
-        recalculate();
-        computedChunk.set(cachedValue); // Update the chunk value after manual recomputation
-      }
-    },
     set: () => {
       throw new Error('Cannot directly set a computed value');
+    },
+    destroy() {
+      dependencies.clear()
+      computedChunk.destroy();
     }
   };
+}
+
+function runAfterTick(func: () => void) {
+  let isCalled = false;
+
+  return () => {
+    if (!isCalled) {
+      isCalled = true
+      Promise.resolve().then(() => {
+        func();
+        isCalled = false
+      })
+    }
+  }
 }

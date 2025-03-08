@@ -1,4 +1,5 @@
 import { processMiddleware } from "../utils";
+import { activeComp } from "./computed";
 
 export type Subscriber<T> = (newValue: T) => void;
 export type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
@@ -43,6 +44,7 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
   let value = initialValue;
   const subscribers = new Set<Subscriber<T>>();
   let isDirty = false;
+  const isInitInComputed = activeComp !== undefined
 
   const notifySubscribers = () => {
     if (batchDepth > 0) {
@@ -60,18 +62,10 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     }
   }
 
-  const get = () => value;
-
   const set = (newValueOrUpdater: T | ((currentValue: T) => T)) => {
     let newValue: T;
 
-    if (typeof newValueOrUpdater === 'function') {
-      // Handle updater function
-      newValue = (newValueOrUpdater as (currentValue: T) => T)(value);
-    } else {
-      // Handle direct value assignment
-      newValue = newValueOrUpdater;
-    }
+    newValue = newValueOrUpdater instanceof Function ? newValueOrUpdater(value) : newValueOrUpdater
 
     const processedValue = processMiddleware(newValue, middleware);
 
@@ -124,5 +118,17 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     return derivedChunk;
   };
 
-  return { get, set, subscribe, derive, reset, destroy };
+  return {
+    get() {
+      if (!isInitInComputed && activeComp) {
+        activeComp.add(this)
+      }
+      return value
+    },
+    set,
+    subscribe,
+    derive,
+    reset,
+    destroy
+  };
 }
