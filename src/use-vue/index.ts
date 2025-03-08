@@ -1,1 +1,0 @@
-export { useAsyncChunk } from "./hooks/useAsyncChunk"
