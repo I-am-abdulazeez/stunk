@@ -2,6 +2,12 @@
   "name": "stunk",
   "version": "2.0.0",
   "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue, Svelte, and Vanilla JS/TS applications.",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "prepublishOnly": "vitest && tsc",
+    "prepare": "npm run build"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/I-am-abdulazeez/stunk"
@@ -12,6 +18,9 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -24,14 +33,12 @@
     "./react": {
       "import": "./dist/use-react/index.js",
       "types": "./dist/types/use-react/index.d.ts"
+    },
+    "./vue": {
+      "import": "./dist/use-vue/index.js",
+      "types": "./dist/types/use-vue/index.d.ts"
     }
   },
-  "scripts": {
-    "build": "tsc",
-    "test": "jest --runInBand",
-    "prepare": "npm run build"
-  },
-  "testEnvironment": "jsdom",
   "keywords": [
     "state-management",
     "atomic-state",
@@ -64,16 +71,21 @@
   ],
   "license": "MIT",
   "devDependencies": {
-    "@types/jest": "^29.5.14",
     "@types/react": "^19.0.10",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "ts-jest": "^29.2.5",
-    "typescript": "^5.0.0"
+    "vue": "^3.5.13",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.7",
+    "jsdom": "^26.0.0",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/vue": "^8.1.0"
   },
   "peerDependencies": {
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "vue": "^3.5.13"
   }
 }
