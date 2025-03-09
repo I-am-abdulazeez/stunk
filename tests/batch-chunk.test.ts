@@ -1,10 +1,11 @@
+import { describe, expect, it, vi } from "vitest"
 import { chunk, batch } from '../src/core/core';
 
 
 describe('Chunk batch updates', () => {
   it('should batch multiple updates into a single notification', () => {
     const countChunk = chunk(0);
-    const callback = jest.fn();
+    const callback = vi.fn();
 
     countChunk.subscribe(callback);
     callback.mockClear(); // Clear initial subscription call
@@ -21,7 +22,7 @@ describe('Chunk batch updates', () => {
 
   it('should handle nested batch calls', () => {
     const countChunk = chunk(0);
-    const callback = jest.fn();
+    const callback = vi.fn();
 
     countChunk.subscribe(callback);
     callback.mockClear();
@@ -41,7 +42,7 @@ describe('Chunk batch updates', () => {
 
   it('should handle errors in batch without breaking state', () => {
     const countChunk = chunk(0);
-    const callback = jest.fn();
+    const callback = vi.fn();
 
     countChunk.subscribe(callback);
     callback.mockClear();
@@ -62,8 +63,8 @@ describe('Chunk batch updates', () => {
   it('should work with multiple chunks in the same batch', () => {
     const chunk1 = chunk(0);
     const chunk2 = chunk(0);
-    const callback1 = jest.fn();
-    const callback2 = jest.fn();
+    const callback1 = vi.fn();
+    const callback2 = vi.fn();
 
     chunk1.subscribe(callback1);
     chunk2.subscribe(callback2);
@@ -86,8 +87,8 @@ describe('Chunk batch updates', () => {
   it('should handle derived chunks in batch updates', () => {
     const sourceChunk = chunk(0);
     const derivedChunk = sourceChunk.derive(x => x * 2);
-    const sourceCallback = jest.fn();
-    const derivedCallback = jest.fn();
+    const sourceCallback = vi.fn();
+    const derivedCallback = vi.fn();
 
     sourceChunk.subscribe(sourceCallback);
     derivedChunk.subscribe(derivedCallback);
