@@ -1,6 +1,6 @@
 {
   "name": "stunk",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue, Svelte, and Vanilla JS/TS applications.",
   "scripts": {
     "build": "tsc",
@@ -71,18 +71,18 @@
   ],
   "license": "MIT",
   "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/vue": "^8.1.0",
     "@types/react": "^19.0.10",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "vue": "^3.5.13",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitejs/plugin-vue": "^5.2.1",
-    "typescript": "^5.0.0",
-    "vitest": "^3.0.7",
     "jsdom": "^26.0.0",
-    "@testing-library/react": "^16.2.0",
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/vue": "^8.1.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.8",
+    "vue": "^3.5.13"
   },
   "peerDependencies": {
     "react": "^19.0.0",
