@@ -76,6 +76,7 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
   };
 
   const subscribe = (callback: Subscriber<T>) => {
+    let $callback: Subscriber<T> | undefined = callback
     if (typeof callback !== "function") {
       throw new Error("Callback must be a function.");
     }
@@ -85,7 +86,7 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     subscribers.add(callback);
     callback(value);
 
-    return () => subscribers.delete(callback);
+    return () => { if ($callback) { subscribers.delete($callback); $callback = undefined } };
   };
 
   const reset = () => {
