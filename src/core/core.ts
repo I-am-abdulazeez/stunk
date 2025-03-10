@@ -121,7 +121,7 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
   return {
     get() {
       if (!isInitInComputed && activeComp) {
-        activeComp.add(this)
+        activeComp.set(this, undefined)
       }
       return value
     },

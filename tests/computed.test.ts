@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { chunk } from '../src/core/core';
-import { computed } from '../src/core/computed';
+import { computed, runAfterTick } from '../src/core/computed';
+import { asyncChunk } from '../src/core/asyncChunk';
 
 const resolve = () => Promise.resolve()
 
@@ -68,4 +69,45 @@ describe('computed', () => {
 
     expect(result.get()).toBe(14);
   });
+
+  it('should work with an async chunk', async () => {
+    const a = asyncChunk(() => {
+      return new Promise<number>((resolve) => {
+        setTimeout(resolve, 200, 5)
+      })
+    }, { initialData: 0 });
+    const b = chunk(3);
+    const c = chunk(4);
+
+    function redo() {
+      const data = a.get().data!
+
+      return data * b.get() + c.get()
+    }
+
+    const result = computed(() => {
+      return redo()
+    });
+
+    expect(result.get()).toBe(4);
+
+
+    await new Promise((res) => { setTimeout(res, 200) })
+
+    const data = a.get().data!
+    const res = data * b.get() + c.get()
+    expect(res).toBe(19)
+  })
+
+  it('should run only once synchronously', async () => {
+    const fn = vi.fn()
+
+    const runOnce = runAfterTick(fn)
+
+    for (let i = 0; i < 100; i++) runOnce();
+
+    await resolve()
+
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
 });

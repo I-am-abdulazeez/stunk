@@ -8,14 +8,16 @@ export type DependencyValues<T extends Chunk<any>[]> = {
   [K in keyof T]: T[K] extends Chunk<any> ? ChunkValue<T[K]> : never;
 };
 
-export let activeComp: Set<Chunk<any>> | undefined;
+type ActiveCompMap = Map<Chunk<any>, (() => void) | undefined>
+
+export let activeComp: ActiveCompMap | undefined;
 
 export interface Computed<T> extends Chunk<T> { }
 
-export function computed<TDeps extends Chunk<any>[], TResult>(
+export function computed<TResult>(
   computeFn: () => TResult extends Promise<any> ? never : TResult
 ): Computed<TResult> {
-  const dependencies: Set<Chunk<any>> = new Set()
+  const dependencies: ActiveCompMap = new Map()
   activeComp = dependencies
   let cachedValue: TResult = computeFn();
   activeComp = undefined
@@ -29,9 +31,9 @@ export function computed<TDeps extends Chunk<any>[], TResult>(
     };
   })
 
-  dependencies.forEach((chunk) => {
-    chunk.subscribe(recalculate)
-  })
+  for (const [chunk, value] of dependencies) {
+    dependencies.set(chunk, chunk.subscribe(recalculate))
+  }
 
   return {
     ...computedChunk,
@@ -39,13 +41,18 @@ export function computed<TDeps extends Chunk<any>[], TResult>(
       throw new Error('Cannot directly set a computed value');
     },
     destroy() {
+      // Unsuscribe from dependencies' suscription
+      for (const [, value] of dependencies) {
+        value?.()
+      }
       dependencies.clear()
       computedChunk.destroy();
     }
   };
 }
 
-function runAfterTick(func: () => void) {
+/** @internal */
+export function runAfterTick(func: () => void) {
   let isCalled = false;
 
   return () => {
