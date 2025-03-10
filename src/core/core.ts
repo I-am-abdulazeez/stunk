@@ -80,9 +80,6 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     if (typeof callback !== "function") {
       throw new Error("Callback must be a function.");
     }
-    if (subscribers.has(callback)) {
-      console.warn("Callback is already subscribed. This may lead to duplicate updates.");
-    }
     subscribers.add(callback);
     callback(value);
 
@@ -96,7 +93,7 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
 
   const destroy = () => {
     if (subscribers.size > 0) {
-      console.warn("Destroying chunk with active subscribers. This may lead to memory leaks.");
+      console.warn("Destroying chunk with active subscribers. This may lead to memory leaks.\nEither call unsuscribe or free resources e.g the function returned by suscribe");
     }
     // Just clear subscribers without calling unsubscribe
     subscribers.clear();

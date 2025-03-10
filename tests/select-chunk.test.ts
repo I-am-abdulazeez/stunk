@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { chunk } from '../src/core/core';
 import { select } from '../src/core/selector'
+import { resolve } from './utils';
 
 describe('select', () => {
   it('should create a selector that initially returns the correct value', () => {
@@ -34,7 +35,7 @@ describe('select', () => {
     expect(subscriber).not.toHaveBeenCalled();
   });
 
-  it('should notify subscribers when selected value changes', () => {
+  it('should notify subscribers when selected value changes', async () => {
     const source = chunk({ name: 'John', age: 25 });
     const nameSelector = select(source, user => user.name);
 
@@ -45,6 +46,8 @@ describe('select', () => {
     subscriber.mockReset();
 
     source.set({ name: 'Jane', age: 25 });
+
+    await resolve()
 
     expect(subscriber).toHaveBeenCalledTimes(1);
     expect(subscriber).toHaveBeenCalledWith('Jane');
@@ -120,8 +123,8 @@ describe('select', () => {
     ageSelector.subscribe(ageSubscriber);
 
     // Reset mocks to ignore initial calls
-    nameSubscriber.mockReset();
-    ageSubscriber.mockReset();
+    // nameSubscriber.mockReset();
+    // ageSubscriber.mockReset();
 
     source.set({ name: 'John', age: 26 });
     expect(nameSubscriber).not.toHaveBeenCalled();
