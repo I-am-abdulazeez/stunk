@@ -1,5 +1,5 @@
 import { computed } from "./computed";
-import { chunk, Chunk } from "./core";
+import { Chunk } from "./core";
 
 
 export function select<T, S>(sourceChunk: Chunk<T>, selector: (value: T) => S extends Promise<any> ? never : S): Chunk<S> {
