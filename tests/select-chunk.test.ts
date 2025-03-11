@@ -111,7 +111,7 @@ describe('select', () => {
     expect(subscriber).not.toHaveBeenCalled();
   });
 
-  it('should work with multiple independent selectors', () => {
+  it('should work with multiple independent selectors', async () => {
     const source = chunk({ name: 'John', age: 25 });
     const nameSelector = select(source, user => user.name);
     const ageSelector = select(source, user => user.age);
@@ -119,18 +119,26 @@ describe('select', () => {
     const nameSubscriber = vi.fn();
     const ageSubscriber = vi.fn();
 
+    // Reset mocks to ignore initial calls
+
     nameSelector.subscribe(nameSubscriber);
     ageSelector.subscribe(ageSubscriber);
 
-    // Reset mocks to ignore initial calls
-    // nameSubscriber.mockReset();
-    // ageSubscriber.mockReset();
+    nameSubscriber.mockReset();
+    ageSubscriber.mockReset();
+
 
     source.set({ name: 'John', age: 26 });
+
+    await resolve()
+
     expect(nameSubscriber).not.toHaveBeenCalled();
     expect(ageSubscriber).toHaveBeenCalledWith(26);
 
     source.set({ name: 'Jane', age: 26 });
+
+    await resolve()
+
     expect(nameSubscriber).toHaveBeenCalledWith('Jane');
     expect(ageSubscriber).toHaveBeenCalledTimes(1); // Still from previous update
   });
