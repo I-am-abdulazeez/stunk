@@ -1,7 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { chunk } from '../src/core/core';
 import { computed } from '../src/core/computed';
 import { resolve } from './utils';
+
+function createSubscriber(chunk) {
+  const fn = vi.fn();
+  const cleanup = chunk.subscribe(() => fn(chunk.get()));
+  return { fn, cleanup };
+}
 
 describe('computed', () => {
   it('should compute the value based on dependencies', async () => {
@@ -96,5 +102,85 @@ describe('computed', () => {
     await resolve()
 
     expect(result.get()).toBe(14);
+  });
+
+  it('should manually recompute the value', () => {
+    const num1 = chunk(1);
+    const num2 = chunk(2);
+
+    const sum = computed(() => num1.get() + num2.get());
+
+    expect(sum.get()).toBe(3);
+
+    num1.set(4);
+
+    sum.recompute(); // Manually recompute
+    expect(sum.get()).toBe(6);
+  });
+
+  it('should support multiple dependencies', () => {
+    const a = chunk(2);
+    const b = chunk(3);
+    const c = chunk(4);
+
+    const result = computed(() => a.get() * b.get() + c.get());
+
+    expect(result.get()).toBe(10);
+
+    b.set(5);
+
+    expect(result.get()).toBe(14);
+  });
+
+  it('should handle nested computed values correctly', () => {
+    const a = chunk(2);
+    const b = chunk(3);
+
+    const sum = computed(() => a.get() + b.get());
+    const doubled = computed(() => sum.get() * 2);
+
+    expect(sum.get()).toBe(5);
+    expect(doubled.get()).toBe(10);
+
+    a.set(5);
+    expect(sum.get()).toBe(8);
+    expect(doubled.get()).toBe(16);
+
+    b.set(7);
+    expect(sum.get()).toBe(12);
+    expect(doubled.get()).toBe(24);
+  });
+
+  it('should notify subscribers when dependencies change', () => {
+    const a = chunk(5);
+    const b = chunk(10);
+
+    const sum = computed(() => a.get() + b.get());
+
+    const { fn: subscriber, cleanup } = createSubscriber(sum);
+
+    expect(subscriber).toHaveBeenCalledWith(15);
+
+    subscriber.mockReset();
+
+    a.set(7);
+
+    expect(subscriber).toHaveBeenCalled();
+
+    cleanup();
+  });
+
+
+  it('should mark computed as dirty when dependencies change', () => {
+    const a = chunk(5);
+    const b = chunk(10);
+
+    const sum = computed(() => a.get() + b.get());
+    expect(sum.isDirty()).toBe(false);
+
+    a.set(7);
+
+    expect(sum.get()).toBe(17);
+    expect(sum.isDirty()).toBe(false);
   });
 });
