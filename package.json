@@ -9,6 +9,7 @@
     "prepare": "npm run build",
     "lint": "eslint . --ext .js,.ts,.tsx,.vue"
   },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/I-am-abdulazeez/stunk"
