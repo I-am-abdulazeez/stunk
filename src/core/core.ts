@@ -1,4 +1,4 @@
-import { processMiddleware } from "../utils";
+import { processMiddleware, shallowEqual } from "../utils";
 
 export type Subscriber<T> = (newValue: T) => void;
 export type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
@@ -18,19 +18,30 @@ export interface Chunk<T> {
   destroy: () => void;
 }
 
-let batchDepth = 0;
-const batchQueue = new Set<() => void>();
+// Global state for batching
+let isBatching = false;
+const dirtyChunks = new Set<number>();
+const chunkRegistry = new Map<number, { notify: () => void }>();
+let chunkIdCounter = 0;
 
+/**
+ * Batch multiple chunk updates into a single re-render.
+ * Useful for updating multiple chunks at once without causing multiple re-renders.
+ */
 export function batch(callback: () => void) {
-  batchDepth++;
+  const wasBatchingBefore = isBatching;
+  isBatching = true;
   try {
     callback();
   } finally {
-    batchDepth--;
-    if (batchDepth === 0) {
-      // Execute all queued updates
-      batchQueue.forEach(update => update());
-      batchQueue.clear();
+    if (!wasBatchingBefore) {
+      isBatching = false;
+      const chunks = Array.from(dirtyChunks); // Snapshot to avoid mutation issues
+      dirtyChunks.clear(); // Clear early to prevent re-adds
+      chunks.forEach(id => {
+        const chunk = chunkRegistry.get(id);
+        if (chunk) chunk.notify();
+      });
     }
   }
 }
@@ -42,23 +53,22 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
 
   let value = initialValue;
   const subscribers = new Set<Subscriber<T>>();
-  let isDirty = false;
+  const chunkId = chunkIdCounter++;
+
+  const notify = () => {
+    subscribers.forEach(subscriber => subscriber(value));
+  };
+
+  chunkRegistry.set(chunkId, { notify });
 
   const notifySubscribers = () => {
-    if (batchDepth > 0) {
-      if (!isDirty) {
-        isDirty = true;
-        batchQueue.add(() => {
-          if (isDirty) {
-            subscribers.forEach((subscriber) => subscriber(value));
-            isDirty = false;
-          }
-        });
-      }
+    if (subscribers.size === 0) return; // Skip if no subscribers
+    if (isBatching) {
+      dirtyChunks.add(chunkId);
     } else {
-      subscribers.forEach((subscriber) => subscriber(value));
+      notify();
     }
-  }
+  };
 
   const get = () => value;
 
@@ -66,16 +76,19 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     let newValue: T;
 
     if (typeof newValueOrUpdater === 'function') {
-      // Handle updater function
       newValue = (newValueOrUpdater as (currentValue: T) => T)(value);
     } else {
-      // Handle direct value assignment
       newValue = newValueOrUpdater;
     }
 
     const processedValue = processMiddleware(newValue, middleware);
 
-    if (processedValue !== value) {
+    const isObject = typeof processedValue === 'object' && processedValue !== null;
+    const isValueObject = typeof value === 'object' && value !== null;
+    if (
+      (!isObject || !isValueObject || !shallowEqual(processedValue, value)) &&
+      processedValue !== value
+    ) {
       value = processedValue as T & {};
       notifySubscribers();
     }
@@ -85,41 +98,42 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     if (typeof callback !== "function") {
       throw new Error("Callback must be a function.");
     }
-    if (subscribers.has(callback)) {
-      console.warn("Callback is already subscribed. This may lead to duplicate updates.");
-    }
     subscribers.add(callback);
     callback(value);
-
     return () => subscribers.delete(callback);
   };
 
   const reset = () => {
     value = initialValue;
-    subscribers.forEach((subscriber) => subscriber(value));
+    notifySubscribers();
   };
 
   const destroy = () => {
-    if (subscribers.size > 0) {
-      console.warn("Destroying chunk with active subscribers. This may lead to memory leaks.");
-    }
-    // Just clear subscribers without calling unsubscribe
     subscribers.clear();
     value = initialValue;
+    dirtyChunks.delete(chunkId);
+    chunkRegistry.delete(chunkId);
   };
-
 
   const derive = <D>(fn: (value: T) => D) => {
     if (typeof fn !== "function") {
       throw new Error("Derive function must be a function.");
     }
-    const derivedValue = fn(value);
-    const derivedChunk = chunk(derivedValue);
 
-    subscribe(() => {
+    const initialDerivedValue = fn(value);
+    const derivedChunk = chunk(initialDerivedValue);
+
+    const unsubscribe = subscribe(() => {
       const newDerivedValue = fn(value);
       derivedChunk.set(newDerivedValue);
     });
+
+    // Add a cleanup method to the derived chunk
+    const originalDestroy = derivedChunk.destroy;
+    derivedChunk.destroy = () => {
+      unsubscribe();
+      originalDestroy();
+    };
 
     return derivedChunk;
   };
