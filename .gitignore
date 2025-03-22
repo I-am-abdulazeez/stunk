@@ -25,7 +25,7 @@ Thumbs.db
 /coverage/
 
 # Package lock files (if you want to avoid committing them)
-# package-lock.json
+package-lock.json
 yarn.lock
 
 # Optional: You may want to ignore your environment-specific config
