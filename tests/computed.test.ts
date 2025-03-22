@@ -113,10 +113,11 @@ describe('computed', () => {
 
     a.set(7);
 
-    expect(subscriber).toHaveBeenCalled();
+    expect(subscriber).toHaveBeenCalledWith(17); // ✅ Ensures correct notification
 
     cleanup();
   });
+
 
   it('should mark computed as dirty when dependencies change', () => {
     const a = chunk(5);
