@@ -1,5 +1,5 @@
 import { test, expect, describe, it, beforeEach, afterAll, vi } from "vitest";
-import { chunk } from "../src/core/core";
+import { batch, chunk } from "../src/core/core";
 
 test("Chunk should get and set values correctly", () => {
   const chunky = chunk<number>(0);
@@ -13,7 +13,7 @@ test("Chunk should get and set values correctly", () => {
 test("Chunk should notify subscribers on value change", () => {
   const chunky = chunk<number>(0);
   const callback = vi.fn();
-  const unsubscribe = chunky.subscribe(callback); // Store unsubscribe function
+  const unsubscribe = chunky.subscribe(callback);
 
   chunky.set(5);
   expect(callback).toHaveBeenCalledWith(5);
@@ -31,7 +31,6 @@ test("Chunk should notify multiple subscribers correctly", () => {
 
   const unsubscribe1 = chunky.subscribe(callback1);
   const unsubscribe2 = chunky.subscribe(callback2);
-
 
   chunky.set(10);
 
@@ -58,7 +57,7 @@ test("Chunk should allow unsubscribing from updates", () => {
 
   unsubscribe();
   chunky.set(10);
-  expect(callback).toHaveBeenCalledTimes(2); // Still called only twice
+  expect(callback).toHaveBeenCalledTimes(2);
 });
 
 describe("Chunk Derivation", () => {
@@ -73,7 +72,6 @@ describe("Chunk Derivation", () => {
     count.subscribe(countSpy);
     doubleCount.subscribe(doubleCountSpy);
 
-    // Initial values
     expect(count.get()).toBe(5);
     expect(doubleCount.get()).toBe(10);
     expect(countSpy).toHaveBeenCalledWith(5);
@@ -92,14 +90,12 @@ describe("Chunk Derivation", () => {
     const doubleCount = count.derive((value) => value * 2);
 
     const doubleCountSpy = vi.fn();
-
-    // Subscribe to the derived chunk
     doubleCount.subscribe(doubleCountSpy);
 
     // Setting the same value
     count.set(5);
-    expect(doubleCount.get()).toBe(10); // Derived value should remain the same
-    expect(doubleCountSpy).toHaveBeenCalledTimes(1); // Only initial value
+    expect(doubleCount.get()).toBe(10);
+    expect(doubleCountSpy).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -120,7 +116,6 @@ describe('Chunk destroy', () => {
   const anotherCallback = vi.fn();
 
   beforeEach(() => {
-    // Reset the mocks
     countCallback.mockClear();
     anotherCallback.mockClear();
   });
@@ -177,14 +172,109 @@ describe('Chunk destroy', () => {
     expect(newCountCallback).toHaveBeenCalledWith(0);
     expect(newAnotherCallback).toHaveBeenCalledWith(0);
 
-    // Cleanup
     newCountUnsubscribe();
     newAnotherUnsubscribe();
   });
 
-  // Clean up after all tests
   afterAll(() => {
     countChunk.destroy();
     anotherChunk.destroy();
   });
 });
+
+describe('chunk update', () => {
+  it('should update value using updater function', () => {
+    const store = chunk(5);
+    store.set(value => value + 1);
+    expect(store.get()).toBe(6);
+  });
+
+  it('should notify subscribers only if value changes', () => {
+    const store = chunk(5);
+    const subscriber = vi.fn();
+    store.subscribe(subscriber);
+
+    // Reset the mock to ignore initial subscription call
+    subscriber.mockReset();
+
+    // Update to same value
+    store.set(value => value);
+    expect(subscriber).not.toHaveBeenCalled();
+
+    store.set(value => value + 1);
+    expect(subscriber).toHaveBeenCalledWith(6);
+    expect(subscriber).toHaveBeenCalledTimes(1);
+  });
+
+  it('should handle complex update logic', () => {
+    const store = chunk(5);
+    store.set(value => {
+      if (value > 3) {
+        return value * 2;
+      }
+      return value + 1;
+    });
+    expect(store.get()).toBe(10);
+  });
+
+  it('should maintain type safety', () => {
+    interface User {
+      name: string;
+      age: number;
+    }
+
+    const store = chunk<User>({ name: 'John', age: 30 });
+
+    store.set(user => ({
+      ...user,
+      age: user.age + 1
+    }));
+
+    const user = store.get();
+    expect(user.age).toBe(31);
+    expect(user.name).toBe('John');
+  });
+});
+
+describe("Chunk Shallow Check", () => {
+  it('should not notify on same primitive', () => {
+    const numChunk = chunk(1);
+    const callback = vi.fn();
+    numChunk.subscribe(callback);
+    callback.mockClear();
+
+    batch(() => {
+      numChunk.set(1);
+    });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it('should notify on primitive change', () => {
+    const numChunk = chunk(1);
+    const callback = vi.fn();
+    numChunk.subscribe(callback);
+    callback.mockClear();
+
+    batch(() => {
+      numChunk.set(2);
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenLastCalledWith(2);
+  });
+
+  it('should notify on shallow different objects', () => {
+    const objChunk = chunk({ a: 1 });
+    const callback = vi.fn();
+    objChunk.subscribe(callback);
+    callback.mockClear();
+
+    batch(() => {
+      objChunk.set({ a: 2 });
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenLastCalledWith({ a: 2 });
+  });
+})

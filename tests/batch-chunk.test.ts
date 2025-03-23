@@ -43,15 +43,14 @@ describe('Chunk batch updates', () => {
   it('should handle errors in batch without breaking state', () => {
     const countChunk = chunk(0);
     const callback = vi.fn();
-
     countChunk.subscribe(callback);
     callback.mockClear();
 
     expect(() => {
       batch(() => {
-        countChunk.set(1);
+        countChunk.set(1); // Should trigger callback
         throw new Error('Test error');
-        // countChunk.set(2);
+        // countChunk.set(2); // Unreachable
       });
     }).toThrow('Test error');
 
@@ -92,6 +91,8 @@ describe('Chunk batch updates', () => {
 
     sourceChunk.subscribe(sourceCallback);
     derivedChunk.subscribe(derivedCallback);
+
+    // Clear mocks after initial calls
     sourceCallback.mockClear();
     derivedCallback.mockClear();
 
