@@ -13,7 +13,7 @@ test("Chunk should get and set values correctly", () => {
 test("Chunk should notify subscribers on value change", () => {
   const chunky = chunk<number>(0);
   const callback = vi.fn();
-  const unsubscribe = chunky.subscribe(callback); // Store unsubscribe function
+  const unsubscribe = chunky.subscribe(callback);
 
   chunky.set(5);
   expect(callback).toHaveBeenCalledWith(5);
@@ -31,7 +31,6 @@ test("Chunk should notify multiple subscribers correctly", () => {
 
   const unsubscribe1 = chunky.subscribe(callback1);
   const unsubscribe2 = chunky.subscribe(callback2);
-
 
   chunky.set(10);
 
@@ -58,7 +57,7 @@ test("Chunk should allow unsubscribing from updates", () => {
 
   unsubscribe();
   chunky.set(10);
-  expect(callback).toHaveBeenCalledTimes(2); // Still called only twice
+  expect(callback).toHaveBeenCalledTimes(2);
 });
 
 describe("Chunk Derivation", () => {
@@ -73,7 +72,6 @@ describe("Chunk Derivation", () => {
     count.subscribe(countSpy);
     doubleCount.subscribe(doubleCountSpy);
 
-    // Initial values
     expect(count.get()).toBe(5);
     expect(doubleCount.get()).toBe(10);
     expect(countSpy).toHaveBeenCalledWith(5);
@@ -92,14 +90,12 @@ describe("Chunk Derivation", () => {
     const doubleCount = count.derive((value) => value * 2);
 
     const doubleCountSpy = vi.fn();
-
-    // Subscribe to the derived chunk
     doubleCount.subscribe(doubleCountSpy);
 
     // Setting the same value
     count.set(5);
-    expect(doubleCount.get()).toBe(10); // Derived value should remain the same
-    expect(doubleCountSpy).toHaveBeenCalledTimes(1); // Only initial value
+    expect(doubleCount.get()).toBe(10);
+    expect(doubleCountSpy).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -120,7 +116,6 @@ describe('Chunk destroy', () => {
   const anotherCallback = vi.fn();
 
   beforeEach(() => {
-    // Reset the mocks
     countCallback.mockClear();
     anotherCallback.mockClear();
   });
@@ -177,12 +172,10 @@ describe('Chunk destroy', () => {
     expect(newCountCallback).toHaveBeenCalledWith(0);
     expect(newAnotherCallback).toHaveBeenCalledWith(0);
 
-    // Cleanup
     newCountUnsubscribe();
     newAnotherUnsubscribe();
   });
 
-  // Clean up after all tests
   afterAll(() => {
     countChunk.destroy();
     anotherChunk.destroy();
@@ -208,7 +201,6 @@ describe('chunk update', () => {
     store.set(value => value);
     expect(subscriber).not.toHaveBeenCalled();
 
-    // Update to new value
     store.set(value => value + 1);
     expect(subscriber).toHaveBeenCalledWith(6);
     expect(subscriber).toHaveBeenCalledTimes(1);
