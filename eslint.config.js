@@ -1,10 +1,10 @@
 import eslintPluginTs from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
-import reactHooks from "eslint-plugin-react-hooks"; // Add this
+import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
-    ignores: ["node_modules/", "dist/"],
+    ignores: ["node_modules/", "dist/", "eslint.config.js", "vitest.config.ts"],
   },
   {
     languageOptions: {
