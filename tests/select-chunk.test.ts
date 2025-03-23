@@ -131,4 +131,102 @@ describe('select', () => {
     expect(nameSubscriber).toHaveBeenCalledWith('Jane');
     expect(ageSubscriber).toHaveBeenCalledTimes(1); // Still from previous update
   });
+
+  it("should not update if selected object has the same values (shallow equal)", () => {
+    const source = chunk({ name: "John", details: { age: 25, city: "Lagos" } });
+    const detailsSelector = select(source, (user) => user.details, { useShallowEqual: true });
+
+    const callback = vi.fn();
+    detailsSelector.subscribe(callback);
+
+    callback.mockReset();
+
+    // Setting a new object with the same values
+    source.set({ name: "John", details: { age: 25, city: "Lagos" } });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  // Test without shallow equality
+  it("should update if selected object is new but has same values (without shallow equal)", () => {
+    const source = chunk({ name: "John", details: { age: 25, city: "Lagos" } });
+    // Not using shallow equality here
+    const detailsSelector = select(source, (user) => user.details);
+
+    const callback = vi.fn();
+    detailsSelector.subscribe(callback);
+
+    // Reset mock to clear initial call
+    callback.mockReset();
+
+    // Setting a new object with the same values
+    source.set({ name: "John", details: { age: 25, city: "Lagos" } });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  // Test nested derivation
+  it('should support nested derivation', () => {
+    const source = chunk({ user: { profile: { name: 'John' } } });
+    const profileSelector = select(source, (data) => data.user.profile);
+    const nameSelector = profileSelector.derive(profile => profile.name);
+
+    expect(nameSelector.get()).toBe('John');
+
+    source.set({ user: { profile: { name: 'Alice' } } });
+    expect(nameSelector.get()).toBe('Alice');
+  });
+
+  it('should pass options to nested selectors', () => {
+    const source = chunk({
+      user: {
+        profile: { details: { age: 30, city: 'New York' } }
+      }
+    });
+
+    const profileSelector = select(source, (data) => data.user.profile, { useShallowEqual: true });
+    const detailsSelector = profileSelector.derive(profile => profile.details);
+
+    const callback = vi.fn();
+    detailsSelector.subscribe(callback);
+
+    // Reset mock to clear initial call
+    callback.mockReset();
+
+    // Update with new object but same values
+    source.set({
+      user: {
+        profile: { details: { age: 30, city: 'New York' } }
+      }
+    });
+
+    expect(callback).not.toHaveBeenCalled(); // Should NOT trigger due to shallow equality
+  });
+
+  // Test that set and reset throw errors
+  it('should throw error when trying to set or reset a selector', () => {
+    const source = chunk({ name: 'John' });
+    const nameSelector = select(source, (user) => user.name);
+
+    expect(() => nameSelector.set('Alice')).toThrow();
+    expect(() => nameSelector.reset()).toThrow();
+  });
+
+  // Test cleanup
+  it('should unsubscribe from source when destroyed', () => {
+    const source = chunk({ name: 'John' });
+    const nameSelector = select(source, (user) => user.name);
+
+    const callback = vi.fn();
+    nameSelector.subscribe(callback);
+
+    // Reset mock to clear initial call
+    callback.mockReset();
+
+    nameSelector.destroy();
+    source.set({ name: 'Alice' });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
 });
