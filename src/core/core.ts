@@ -18,7 +18,6 @@ export interface Chunk<T> {
   destroy: () => void;
 }
 
-// Global state for batching
 let isBatching = false;
 const dirtyChunks = new Set<number>();
 const chunkRegistry = new Map<number, { notify: () => void }>();
@@ -83,12 +82,7 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
 
     const processedValue = processMiddleware(newValue, middleware);
 
-    const isObject = typeof processedValue === 'object' && processedValue !== null;
-    const isValueObject = typeof value === 'object' && value !== null;
-    if (
-      (!isObject || !isValueObject || !shallowEqual(processedValue, value)) &&
-      processedValue !== value
-    ) {
+    if (processedValue !== value) {
       value = processedValue as T & {};
       notifySubscribers();
     }
