@@ -2,30 +2,29 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Set Up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
-          registry-url: "https://registry.npmjs.org/"
+          node-version: 20
+          cache: "npm"
 
-      - name: Install dependencies
-        run: npm install
+      - name: Clean Install Dependencies
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install --force
 
-      - name: Build package
-        run: npm run build
-
-      - name: Publish to NPM
-        run: npm publish --access public
+      - name: Build and Release
+        run: npm run build && npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
