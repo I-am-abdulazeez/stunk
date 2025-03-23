@@ -11,7 +11,12 @@ export type DependencyValues<T extends Chunk<any>[]> = {
 };
 
 export interface Computed<T> extends Chunk<T> {
+  /**
+  * Checks if the computed value needs to be recalculated due to dependency changes.
+  * @returns True if the computed value is dirty, false otherwise.
+  */
   isDirty: () => boolean;
+  /** Manually forces recalculation of the computed value from its dependencies. */
   recompute: () => void;
 }
 
@@ -24,6 +29,8 @@ export function computed<TDeps extends Chunk<any>[], TResult>(
 
   const computedChunk = chunk(cachedValue);
   const originalSet = computedChunk.set;
+
+  let isDirty = false;
 
   // Direct synchronous recomputation
   const recompute = () => {
@@ -47,19 +54,36 @@ export function computed<TDeps extends Chunk<any>[], TResult>(
           originalSet(newValue);
         }
       }
+      isDirty = false;
     }
   };
 
   const unsubs = dependencies.map(dep =>
-    dep.subscribe(recompute)
+    dep.subscribe(() => {
+      isDirty = true;
+      recompute();
+    })
   );
 
   return {
     ...computedChunk,
-    get: () => cachedValue,
+    get: () => {
+      if (isDirty) recompute();
+      return cachedValue;
+    },
     recompute,
-    isDirty: () => false,
+    isDirty: () => isDirty,
     set: () => { throw new Error('Cannot set values directly on computed. Modify the source chunk instead.'); },
+    reset: () => {
+      dependencies.forEach(dep => {
+        if (typeof dep.reset === 'function') {
+          dep.reset();
+        }
+      });
+      isDirty = true;
+      recompute();
+      return cachedValue;
+    },
     destroy: () => { unsubs.forEach(unsub => unsub()); computedChunk.destroy?.(); }
   };
 }
