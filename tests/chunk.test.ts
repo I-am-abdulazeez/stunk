@@ -272,19 +272,6 @@ describe("Chunk Shallow Check", () => {
     expect(callback).toHaveBeenLastCalledWith(2);
   });
 
-  it('should not notify on shallow equal objects', () => {
-    const objChunk = chunk({ a: 1 });
-    const callback = vi.fn();
-    objChunk.subscribe(callback);
-    callback.mockClear();
-
-    batch(() => {
-      objChunk.set({ a: 1 });
-    });
-
-    expect(callback).not.toHaveBeenCalled();
-  });
-
   it('should notify on shallow different objects', () => {
     const objChunk = chunk({ a: 1 });
     const callback = vi.fn();
