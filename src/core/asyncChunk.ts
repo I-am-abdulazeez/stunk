@@ -22,6 +22,12 @@ export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState
   reset: () => void;
 }
 
+/**
+ * Creates an async chunk that handles loading, error, and retry logic.
+ * @param fetcher The async function to fetch data.
+ * @param options Configuration options for the async chunk.
+ * @returns An async chunk instance.
+ */
 export function asyncChunk<T, E extends Error = Error>(fetcher: () => Promise<T>, options: AsyncChunkOpt<T, E> = {}): AsyncChunk<T, E> {
   const {
     initialData = null,
@@ -59,7 +65,6 @@ export function asyncChunk<T, E extends Error = Error>(fetcher: () => Promise<T>
     }
   }
 
-  // Initial fetch
   fetchData();
 
   const asyncChunkInstance: AsyncChunk<T, E> = {
