@@ -1,4 +1,5 @@
 import eslintPluginTs from "@typescript-eslint/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
 
 export default [
   {
@@ -8,6 +9,11 @@ export default [
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
+      parser: tsParser,
+      parserOptions: {
+        project: "./tsconfig.json",
+        tsconfigRootDir: process.cwd(),
+      },
     },
     plugins: {
       "@typescript-eslint": eslintPluginTs,
@@ -15,6 +21,7 @@ export default [
     rules: {
       "no-unused-vars": "warn",
       "no-console": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
     },
   },
 ];
