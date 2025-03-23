@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { batch, chunk } from '../src/core/core';
 import { computed } from '../src/core/computed';
 
-function createSubscriber(chunk) {
+function createSubscriber(chunk: any) {
   const fn = vi.fn();
   const cleanup = chunk.subscribe(() => fn(chunk.get()));
   return { fn, cleanup };
