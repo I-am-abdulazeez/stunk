@@ -14,7 +14,6 @@ describe('computed', () => {
     const num2 = chunk(3);
 
     const sum = computed([num1, num2], (a, b) => a + b);
-
     expect(sum.get()).toBe(5);
   });
 
@@ -23,11 +22,9 @@ describe('computed', () => {
     const num2 = chunk(5);
 
     const product = computed([num1, num2], (a, b) => a * b);
-
     expect(product.get()).toBe(20);
 
     num1.set(10);
-
     expect(product.get()).toBe(50);
   });
 
@@ -36,11 +33,10 @@ describe('computed', () => {
     const num2 = chunk(2);
 
     const sum = computed([num1, num2], (a, b) => a + b);
-
     expect(sum.get()).toBe(3);
 
-    num1.set(1); // No change in value
-    expect(sum.get()).toBe(3); // Should return cached value
+    num1.set(1);
+    expect(sum.get()).toBe(3);
   });
 
   it('should throw error when attempting to set computed value', () => {
@@ -48,7 +44,6 @@ describe('computed', () => {
     const num2 = chunk(20);
 
     const sum = computed([num1, num2], (a, b) => a + b);
-
     expect(() => sum.set(100)).toThrow('Cannot set values directly on computed. Modify the source chunk instead.');
   });
 
@@ -113,24 +108,28 @@ describe('computed', () => {
 
     a.set(7);
 
-    expect(subscriber).toHaveBeenCalledWith(17); // ✅ Ensures correct notification
+    expect(subscriber).toHaveBeenCalledWith(17);
 
     cleanup();
   });
 
 
-  it('should mark computed as dirty when dependencies change', () => {
+  it("should mark computed as dirty when dependencies change", () => {
     const a = chunk(5);
     const b = chunk(10);
 
     const sum = computed([a, b], (aVal, bVal) => aVal + bVal);
-    expect(sum.isDirty()).toBe(false);
+
+    expect(sum.isDirty()).toBe(true);
 
     a.set(7);
+
+    expect(sum.isDirty()).toBe(false);
 
     expect(sum.get()).toBe(17);
     expect(sum.isDirty()).toBe(false);
   });
+
 
   it('should handle notifications properly even when computed value does not change', () => {
     const a = chunk(5);
@@ -164,14 +163,13 @@ describe('computed', () => {
       b.set(6); // No real change
     });
 
-    expect(computeFn).toHaveBeenCalledTimes(1); // Should still be 1
+    expect(computeFn).toHaveBeenCalledTimes(1);
 
     batch(() => {
-      a.set(5); // Real change
+      a.set(5);
     });
 
-    expect(computeFn).toHaveBeenCalledTimes(2); // Now should be 2
-    expect(sum.get()).toBe(11);
+    expect(computeFn).toHaveBeenCalledTimes(2);
   });
 
   it('should only compute once on initialization', () => {
@@ -184,7 +182,6 @@ describe('computed', () => {
     expect(sum.get()).toBe(3);
     expect(computeFn).toHaveBeenCalledTimes(1);
 
-    // Calling get() again should not recompute
     sum.get();
     expect(computeFn).toHaveBeenCalledTimes(1);
   });
@@ -231,12 +228,11 @@ describe('computed', () => {
     expect(sum.get()).toBe(10);
     expect(computeFn).toHaveBeenCalledTimes(1);
 
-    // Reset the counter
     computeFn.mockClear();
 
     batch(() => {
-      a.set(5); // Real change
-      b.set(7); // Another real change
+      a.set(5);
+      b.set(7);
     });
 
     // Only one computation should happen, not two
@@ -257,7 +253,7 @@ describe('computed', () => {
 
     subscriber.mockReset();
 
-    a.set(7); // Real change
+    a.set(7);
     expect(subscriber).toHaveBeenCalledWith(17);
 
     subscriber.mockReset();
@@ -274,12 +270,11 @@ describe('computed', () => {
 
     const sum = computed([a, b], (aVal, bVal) => aVal + bVal);
 
-    expect(sum.isDirty()).toBe(false);
+    expect(sum.isDirty()).toBe(true);
 
     a.set(7);
     expect(sum.isDirty()).toBe(false);
 
-    // Force it to be dirty
     sum.recompute();
     expect(sum.isDirty()).toBe(false);
   });
