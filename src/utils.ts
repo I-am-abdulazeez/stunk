@@ -35,7 +35,7 @@ export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
 ): Chunk<{
   loading: boolean;
   error: Error | null;
-  data: { [K in keyof T]: InferAsyncData<T[K]> | null };
+  data: CombinedData<T>;
 }> {
   // Create initial state with proper typing
   const initialData = Object.keys(chunks).reduce((acc, key) => {
