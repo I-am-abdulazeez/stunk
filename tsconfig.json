@@ -6,6 +6,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,
+    "declarationDir": "./dist/types",
     "baseUrl": "./",
     "paths": {
       "stunk/middleware": ["src/middleware"],
@@ -14,7 +15,7 @@
     "typeRoots": ["./node_modules/@types", "./types"],
     "strict": true,
     "skipLibCheck": true,
-    "jsx": "react",
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true
   },
