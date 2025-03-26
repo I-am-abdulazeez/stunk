@@ -1,5 +1,4 @@
 import { chunk, Chunk } from "./core";
-import { AsyncChunkOpt } from "./types";
 
 export interface AsyncState<T, E extends Error> {
   loading: boolean;
@@ -21,6 +20,38 @@ export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState
    */
   reset: () => void;
 }
+
+/**
+ * Options for configuring an asynchronous chunk.
+ *
+ * @template T - The type of the data stored in the chunk.
+ * @template E - The type of the error that may occur.
+ */
+export interface AsyncChunkOpt<T, E extends Error> {
+  /**
+   * The initial data to be set in the chunk.
+   * Defaults to `null` if not provided.
+   */
+  initialData?: T | null;
+
+  /**
+   * A callback function triggered when an error occurs.
+   * Receives the error as an argument.
+   */
+  onError?: (error: E) => void;
+
+  /**
+   * The number of times to retry a failed asynchronous operation.
+   * Defaults to `0` if not provided.
+   */
+  retryCount?: number;
+
+  /**
+   * The delay (in milliseconds) between retry attempts.
+   * Defaults to `0` if not provided.
+   */
+  retryDelay?: number;
+};
 
 /**
  * Creates an async chunk that handles loading, error, and retry logic.
