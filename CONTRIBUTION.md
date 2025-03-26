@@ -9,7 +9,7 @@ Thank you for your interest in contributing to **Stunk**! 🎉 Your contribution
 First, fork the repository and clone it locally:
 
 ```sh
-git clone https://github.com/your-username/stunk.git
+git clone https://github.com/I-am-abdulazeez/stunk.git
 cd stunk
 ```
 
