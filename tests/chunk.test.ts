@@ -1,4 +1,4 @@
-import { test, expect, describe, it, beforeEach, afterAll, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, test, vi } from "vitest";
 import { chunk } from "../src/core/core";
 
 test("Chunk should get and set values correctly", () => {
@@ -21,6 +21,9 @@ test("Chunk should notify subscribers on value change", () => {
   chunky.set(10);
   expect(callback).toHaveBeenCalledWith(10);
 
+  chunky.set(10);
+  expect(callback).toHaveBeenCalledWith(10);
+
   unsubscribe(); // Ensure cleanup after test
 });
 
@@ -32,7 +35,6 @@ test("Chunk should notify multiple subscribers correctly", () => {
   const unsubscribe1 = chunky.subscribe(callback1);
   const unsubscribe2 = chunky.subscribe(callback2);
 
-
   chunky.set(10);
 
   expect(callback1).toHaveBeenCalledWith(10);
@@ -41,7 +43,6 @@ test("Chunk should notify multiple subscribers correctly", () => {
   unsubscribe1();
   unsubscribe2();
 });
-
 
 test("Chunk should allow unsubscribing from updates", () => {
   const chunky = chunk<number>(0);
@@ -103,7 +104,6 @@ describe("Chunk Derivation", () => {
   });
 });
 
-
 test("Chunk should reset to initial value", () => {
   const count = chunk(5);
   count.set(10);
@@ -112,8 +112,7 @@ test("Chunk should reset to initial value", () => {
   expect(count.get()).toBe(5);
 });
 
-
-describe('Chunk destroy', () => {
+describe("Chunk destroy", () => {
   const countChunk = chunk(0);
   const anotherChunk = chunk(0);
   const countCallback = vi.fn();
@@ -125,7 +124,7 @@ describe('Chunk destroy', () => {
     anotherCallback.mockClear();
   });
 
-  it('should stop notifying subscribers after destroy is called', () => {
+  it("should stop notifying subscribers after destroy is called", () => {
     // Subscribe to the chunks
     const countUnsubscribe = countChunk.subscribe(countCallback);
     const anotherUnsubscribe = anotherChunk.subscribe(anotherCallback);
@@ -157,7 +156,7 @@ describe('Chunk destroy', () => {
     expect(anotherCallback).toHaveBeenCalledTimes(0);
   });
 
-  it('should reset to initial value after destroy', () => {
+  it("should reset to initial value after destroy", () => {
     // Set some values
     countChunk.set(10);
     anotherChunk.set(20);
