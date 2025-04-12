@@ -124,9 +124,11 @@ const ComputedExample = () => {
   return <p>Product: {product}</p>;
 };
 ```
-[👉 See full explanation in docs](https://stunk.vercel.app/useDerive.html)
+
+[👉 See full explanation in docs](https://stunk.vercel.app/useComputed.html)
 
 ## React via useAsyncChunk
+
 ```typescript
 import { asyncChunk } from "stunk";
 import { useAsyncChunk } from "stunk/react";
@@ -151,6 +153,7 @@ const UserProfile = () => {
   );
 };
 ```
+
 [👉 See full explanation in docs](https://stunk.vercel.app/useDerive.html)
 
 ## Contributing
