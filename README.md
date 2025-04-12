@@ -175,6 +175,8 @@ const CounterDisplay = () => {
 };
 ```
 
+👉 [See full explanation in docs](https://stunk.vercel.app/read-only-values.html)
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
