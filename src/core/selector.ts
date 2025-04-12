@@ -1,27 +1,68 @@
-import { chunk, Chunk } from "./core";
+import { shallowEqual } from "../utils";
+import { Chunk, chunk } from "./core";
 
-export function select<T, S>(sourceChunk: Chunk<T>, selector: (value: T) => S): Chunk<S> {
-  const initialValue = selector(sourceChunk.get());
-  const selectedChunk = chunk(initialValue);
-  let previousSelected = initialValue;
+export interface SelectOptions {
+  /**
+   * Configuration options for selector functions.
+   * @property {boolean} [useShallowEqual] - When true, performs a shallow equality check
+   * on the derived selector results to prevent unnecessary updates.
+   */
+  useShallowEqual?: boolean;
+}
 
-  // Subscribe to source changes with equality checking
-  sourceChunk.subscribe((newValue) => {
-    const newSelected = selector(newValue);
+/**
+ * Creates a derived read-only chunk based on a selector function.
+ * @param sourceChunk The source chunk to derive from.
+ * @param selector A function that extracts part of the source value.
+ * @param options Optional settings for shallow equality comparison.
+ * @returns A read-only derived chunk.
+ */
 
-    // Only update if the selected value actually changed
-    if (!Object.is(newSelected, previousSelected)) {
-      previousSelected = newSelected;
-      selectedChunk.set(newSelected);
+export function select<T, S>(
+  sourceChunk: Chunk<T>,
+  selector: (value: T) => S,
+  options: SelectOptions = {}
+): Chunk<S> {
+  const { useShallowEqual = false } = options;
+
+  let prevSourceValue = sourceChunk.get();
+  let currentResult = selector(prevSourceValue);
+
+  const derivedChunk = chunk(currentResult);
+
+  const update = () => {
+    const newSourceValue = sourceChunk.get();
+    const newResult = selector(newSourceValue);
+
+    // Always update the reference to source value
+    prevSourceValue = newSourceValue;
+
+    // Check if the result has changed
+    const resultChanged = useShallowEqual
+      ? !shallowEqual(newResult, currentResult)
+      : newResult !== currentResult;
+
+    if (resultChanged) {
+      currentResult = newResult;
+      derivedChunk.set(newResult);
     }
-  });
+  };
 
-  // Return read-only version of the chunk
+  const unsubscribe = sourceChunk.subscribe(update);
+
   return {
-    ...selectedChunk,
-    // Prevent setting values directly on the selector
+    get: () => derivedChunk.get(),
     set: () => {
       throw new Error('Cannot set values directly on a selector. Modify the source chunk instead.');
+    },
+    subscribe: derivedChunk.subscribe,
+    derive: <D>(fn: (value: S) => D) => select(derivedChunk, fn, options), // Pass options to nested selectors
+    reset: () => {
+      throw new Error('Cannot reset a selector chunk. Reset the source chunk instead.');
+    },
+    destroy: () => {
+      unsubscribe();
+      derivedChunk.destroy();
     }
   };
 }

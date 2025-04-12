@@ -1,18 +1,21 @@
 {
   "name": "stunk",
-  "version": "2.0.0",
+  "version": "2.2.2",
   "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue, Svelte, and Vanilla JS/TS applications.",
   "scripts": {
-    "build": "tsc",
-    "test": "vitest",
+    "build": "tsc --project tsconfig.json && npm run build:cjs",
+    "build:cjs": "echo 'module.exports = require(\"./index.js\");' > dist/index.cjs",
+    "test": "tsc --project tsconfig.test.json && vitest",
     "prepublishOnly": "vitest && tsc",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "lint": "eslint . --ext .js,.ts,.tsx,.vue"
   },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/I-am-abdulazeez/stunk"
   },
-  "homepage": "https://github.com/I-am-abdulazeez/stunk#readme",
+  "homepage": "https://stunk.vercel.app/",
   "bugs": {
     "url": "https://github.com/I-am-abdulazeez/stunk/issues"
   },
@@ -24,6 +27,7 @@
   "exports": {
     ".": {
       "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
       "types": "./dist/index.d.ts"
     },
     "./middleware": {
@@ -37,7 +41,8 @@
     "./vue": {
       "import": "./dist/use-vue/index.js",
       "types": "./dist/types/use-vue/index.d.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "keywords": [
     "state-management",
@@ -71,18 +76,22 @@
   ],
   "license": "MIT",
   "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/vue": "^8.1.0",
     "@types/react": "^19.0.10",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "vue": "^3.5.13",
+    "@typescript-eslint/eslint-plugin": "^8.26.1",
+    "@typescript-eslint/parser": "^8.27.0",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitejs/plugin-vue": "^5.2.1",
-    "typescript": "^5.0.0",
-    "vitest": "^3.0.7",
+    "eslint": "^9.22.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "jsdom": "^26.0.0",
-    "@testing-library/react": "^16.2.0",
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/vue": "^8.1.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.8",
+    "vue": "^3.5.13"
   },
   "peerDependencies": {
     "react": "^19.0.0",

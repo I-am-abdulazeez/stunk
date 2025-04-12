@@ -1,5 +1,7 @@
 import { Chunk, chunk } from "./core";
 
+import { shallowEqual } from "../utils";
+
 // Helper type to extract the value type from a Chunk
 export type ChunkValue<T> = T extends Chunk<infer U> ? U : never;
 
@@ -9,7 +11,12 @@ export type DependencyValues<T extends Chunk<any>[]> = {
 };
 
 export interface Computed<T> extends Chunk<T> {
+  /**
+  * Checks if the computed value needs to be recalculated due to dependency changes.
+  * @returns True if the computed value is dirty, false otherwise.
+  */
   isDirty: () => boolean;
+  /** Manually forces recalculation of the computed value from its dependencies. */
   recompute: () => void;
 }
 
@@ -17,49 +24,66 @@ export function computed<TDeps extends Chunk<any>[], TResult>(
   dependencies: [...TDeps],
   computeFn: (...args: DependencyValues<TDeps>) => TResult
 ): Computed<TResult> {
-  let isDirty = false; // Initialized to false
-  let cachedValue: TResult = computeFn(...dependencies.map(d => d.get()) as DependencyValues<TDeps>);
-
-  const recalculate = () => {
-    const values = dependencies.map(dep => dep.get()) as DependencyValues<TDeps>;
-    cachedValue = computeFn(...values);
-    isDirty = false; // Reset to false after recomputation
-  };
+  const dependencyValues = dependencies.map(dep => dep.get());
+  let cachedValue = computeFn(...dependencyValues as DependencyValues<TDeps>);
 
   const computedChunk = chunk(cachedValue);
+  const originalSet = computedChunk.set;
 
-  const originalGet = computedChunk.get;
-  computedChunk.get = () => {
-    if (isDirty) {
-      recalculate();
-      computedChunk.set(cachedValue); // Update the chunk value after recomputation
+  let isDirty = false;
+
+  // Direct synchronous recomputation
+  const recompute = () => {
+    let hasChanges = false;
+
+    for (let i = 0; i < dependencies.length; i++) {
+      const newValue = dependencies[i].get();
+      if (newValue !== dependencyValues[i]) {
+        dependencyValues[i] = newValue;
+        hasChanges = true;
+      }
     }
-    return cachedValue; // Return the cached value directly
+
+    if (hasChanges) {
+      const newValue = computeFn(...dependencyValues as DependencyValues<TDeps>);
+      // Fast path for primitives only. Avoids shallowEqual for performance.
+      if (newValue !== cachedValue) {
+        // Only use shallowEqual for objects when needed
+        if (typeof newValue !== 'object' || typeof cachedValue !== 'object' || !shallowEqual(newValue, cachedValue)) {
+          cachedValue = newValue;
+          originalSet(newValue);
+        }
+      }
+      isDirty = false;
+    }
   };
 
-  const lastValues = dependencies.map(dep => dep.get());
-
-  dependencies.forEach((dep, index) => {
+  const unsubs = dependencies.map(dep =>
     dep.subscribe(() => {
-      const newValue = dep.get();
-      if (newValue !== lastValues[index] && !isDirty) {
-        lastValues[index] = newValue;
-        isDirty = true;
-      }
-    });
-  });
+      isDirty = true;
+      recompute();
+    })
+  );
 
   return {
     ...computedChunk,
-    isDirty: () => isDirty,
-    recompute: () => {
-      if (isDirty) {
-        recalculate();
-        computedChunk.set(cachedValue); // Update the chunk value after manual recomputation
-      }
+    get: () => {
+      if (isDirty) recompute();
+      return cachedValue;
     },
-    set: () => {
-      throw new Error('Cannot directly set a computed value');
-    }
+    recompute,
+    isDirty: () => isDirty,
+    set: () => { throw new Error('Cannot set values directly on computed. Modify the source chunk instead.'); },
+    reset: () => {
+      dependencies.forEach(dep => {
+        if (typeof dep.reset === 'function') {
+          dep.reset();
+        }
+      });
+      isDirty = true;
+      recompute();
+      return cachedValue;
+    },
+    destroy: () => { unsubs.forEach(unsub => unsub()); computedChunk.destroy?.(); }
   };
 }
