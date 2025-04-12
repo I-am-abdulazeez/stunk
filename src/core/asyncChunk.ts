@@ -1,13 +1,13 @@
 import { chunk, Chunk } from "./core";
 import { AsyncChunkOpt } from "./types";
 
-export interface AsyncState<T> {
+export interface AsyncState<T, E extends Error> {
   loading: boolean;
-  error: Error | null;
+  error: E | null;
   data: T | null;
 }
 
-export interface AsyncChunk<T> extends Chunk<AsyncState<T>> {
+export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState<T, E>> {
   /**
    * Reload the data from the source.
    */
@@ -22,7 +22,13 @@ export interface AsyncChunk<T> extends Chunk<AsyncState<T>> {
   reset: () => void;
 }
 
-export function asyncChunk<T>(fetcher: () => Promise<T>, options: AsyncChunkOpt<T> = {}): AsyncChunk<T> {
+/**
+ * Creates an async chunk that handles loading, error, and retry logic.
+ * @param fetcher The async function to fetch data.
+ * @param options Configuration options for the async chunk.
+ * @returns An async chunk instance.
+ */
+export function asyncChunk<T, E extends Error = Error>(fetcher: () => Promise<T>, options: AsyncChunkOpt<T, E> = {}): AsyncChunk<T, E> {
   const {
     initialData = null,
     onError,
@@ -30,7 +36,7 @@ export function asyncChunk<T>(fetcher: () => Promise<T>, options: AsyncChunkOpt<
     retryDelay = 1000,
   } = options;
 
-  const initialState: AsyncState<T> = {
+  const initialState: AsyncState<T, E> = {
     loading: true,
     error: null,
     data: initialData,
@@ -50,20 +56,18 @@ export function asyncChunk<T>(fetcher: () => Promise<T>, options: AsyncChunkOpt<
         return fetchData(retries - 1);
       }
 
-      const errorObj = error instanceof Error ? error : new Error(String(error));
-      baseChunk.set({ loading: false, error: errorObj, data: baseChunk.get().data });
+      baseChunk.set({ loading: false, error: error as E, data: baseChunk.get().data });
 
       if (onError) {
-        onError(errorObj);
+        onError(error as E);
       }
 
     }
   }
 
-  // Initial fetch
   fetchData();
 
-  const asyncChunkInstance: AsyncChunk<T> = {
+  const asyncChunkInstance: AsyncChunk<T, E> = {
     ...baseChunk,
     reload: async () => {
       await fetchData();

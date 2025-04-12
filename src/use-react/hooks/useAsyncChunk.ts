@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-
 import { AsyncChunk, AsyncState } from "../../core/asyncChunk";
 
 /**
  * A hook that handles asynchronous state with built-in reactivity.
  * Provides loading, error, and data states.
  */
-export function useAsyncChunk<T>(asyncChunk: AsyncChunk<T>) {
-  const [state, setState] = useState<AsyncState<T>>(() => asyncChunk.get());
+export function useAsyncChunk<T, E extends Error>(asyncChunk: AsyncChunk<T, E>) {
+  const [state, setState] = useState<AsyncState<T, E>>(() => asyncChunk.get());
 
   useEffect(() => {
     const unsubscribe = asyncChunk.subscribe((newState) => {
@@ -33,6 +32,6 @@ export function useAsyncChunk<T>(asyncChunk: AsyncChunk<T>) {
     error,
     reload,
     mutate,
-    reset
+    reset,
   };
 }

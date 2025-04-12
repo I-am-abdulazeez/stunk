@@ -21,7 +21,7 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Jest test coverage folder
+# Vitest coverage folder
 /coverage/
 
 # Package lock files (if you want to avoid committing them)
