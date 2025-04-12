@@ -109,6 +109,8 @@ const DoubledCount = () => {
 
 ## React via useComputed
 
+Hook that derives a computed value from one or more Chunks. It automatically re-evaluates whenever any of its dependencies change, ensuring efficient and reactive updates.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
