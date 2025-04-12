@@ -127,6 +127,33 @@ const ComputedExample = () => {
 
 👉 [See full explanation in docs](https://stunk.vercel.app/useComputed.html)
 
+## React via useAsyncChunk
+
+```typescript
+import { asyncChunk } from "stunk";
+import { useAsyncChunk } from "stunk/react";
+
+const fetchUser = asyncChunk(async () => {
+  const res = await fetch("https://jsonplaceholder.typicode.com/users/1");
+  return res.json();
+});
+
+const UserProfile = () => {
+  const { data, loading, error, reload } = useAsyncChunk(fetchUser);
+
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p>Error: {error.message}</p>;
+
+  return (
+    <div>
+      <h2>{data.name}</h2>
+      <p>{data.email}</p>
+      <button onClick={reload}>Reload</button>
+    </div>
+  );
+};
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
