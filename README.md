@@ -154,9 +154,13 @@ const UserProfile = () => {
     </div>
   );
 };
-``` 
+```
 
 👉 [See full explanation in docs](https://stunk.vercel.app/useAysncChunk.html)
+
+## React via useChunkValue
+
+Hook that subscribes to a Chunk and returns its current value. It is useful for read-only components that don’t need to modify the state.
 
 ## Contributing
 
