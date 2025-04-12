@@ -67,6 +67,27 @@ count.destroy();
 
 The `useChunk` hook, enables components to reactively read and update state from a Chunk. The counter example below depicts
 
+```typescript
+import { chunk } from "stunk";
+import { useChunk } from "stunk/react";
+
+const count = chunk(0);
+
+const Counter = () => {
+  const [value, set, reset] = useChunk(count);
+
+  return (
+    <div>
+      <p>Count: {value}</p>
+      <button onClick={() => set((prev) => prev + 1)}>Increment</button>
+      <button onClick={() => reset()}>Reset</button>
+    </div>
+  );
+};
+```
+
+[👉 See full explanation in docs](https://stunk.vercel.app/useChunk.html)
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
