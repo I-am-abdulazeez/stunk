@@ -124,6 +124,7 @@ const ComputedExample = () => {
   return <p>Product: {product}</p>;
 };
 ```
+[👉 See full explanation in docs](https://stunk.vercel.app/useDerive.html)
 
 ## React via useAsyncChunk
 ```typescript
