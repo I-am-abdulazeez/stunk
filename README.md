@@ -32,6 +32,18 @@ Read Docs:
 
 [Stunk](https://stunk.vercel.app/)
 
+## Creating a stunk
+
+```typescript
+import { chunk } from "stunk";
+
+// Create a chunk holding a number
+const count = chunk(0);
+
+// Create a chunk holding a string
+const name = chunk("Stunky, chunky");
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
