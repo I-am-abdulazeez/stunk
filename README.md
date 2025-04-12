@@ -125,6 +125,8 @@ const ComputedExample = () => {
 };
 ```
 
+👉 [See full explanation in docs](https://stunk.vercel.app/useComputed.html)
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
