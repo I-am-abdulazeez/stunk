@@ -154,7 +154,9 @@ const UserProfile = () => {
     </div>
   );
 };
-```
+``` 
+
+👉 [See full explanation in docs](https://stunk.vercel.app/useAysncChunk.html)
 
 ## Contributing
 
