@@ -86,6 +86,8 @@ const Counter = () => {
 };
 ```
 
+👉 [See full explanation in docs](https://stunk.vercel.app/useChunk.html)
+
 ## React via useDerive
 
 Hook that lets you create a read-only derived state from a Chunk. It keeps the derived value reactive, automatically updating whenever the source Chunk changes.
@@ -103,7 +105,7 @@ const DoubledCount = () => {
 };
 ```
 
-👉 [See full explanation in docs](https://stunk.vercel.app/useChunk.html)
+👉 [See full explanation in docs](https://stunk.vercel.app/useDerive.html)
 
 ## Contributing
 
