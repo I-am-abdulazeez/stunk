@@ -181,6 +181,14 @@ Live Examples:
 
 👉 [Visit](https://stunk-examples.vercel.app/)
 
+Coding Examples:
+
+👉 [Visit](https://stunk.vercel.app/examples.html)
+
+Further Examples:
+
+👉 [Visit](https://github.com/I-am-abdulazeez/stunk-examples/)
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
