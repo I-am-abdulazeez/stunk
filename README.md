@@ -86,7 +86,7 @@ const Counter = () => {
 };
 ```
 
-[👉 See full explanation in docs](https://stunk.vercel.app/useChunk.html)
+👉 [See full explanation in docs](https://stunk.vercel.app/useChunk.html)
 
 ## React via useDerive
 
@@ -105,7 +105,7 @@ const DoubledCount = () => {
 };
 ```
 
-[👉 See full explanation in docs](https://stunk.vercel.app/useDerive.html)
+👉 [See full explanation in docs](https://stunk.vercel.app/useDerive.html)
 
 ## React via useComputed
 
@@ -125,7 +125,7 @@ const ComputedExample = () => {
 };
 ```
 
-[👉 See full explanation in docs](https://stunk.vercel.app/useComputed.html)
+👉 [See full explanation in docs](https://stunk.vercel.app/useComputed.html)
 
 ## React via useAsyncChunk
 
@@ -154,7 +154,7 @@ const UserProfile = () => {
 };
 ```
 
-[👉 See full explanation in docs](https://stunk.vercel.app/useAysncChunk.html)
+👉 [See full explanation in docs](https://stunk.vercel.app/useAysncChunk.html)
 
 ## Contributing
 
