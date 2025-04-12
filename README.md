@@ -107,6 +107,8 @@ const DoubledCount = () => {
 
 👉 [See full explanation in docs](https://stunk.vercel.app/useDerive.html)
 
+## React via useComputed
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
