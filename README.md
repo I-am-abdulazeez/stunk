@@ -154,7 +154,7 @@ const UserProfile = () => {
 };
 ```
 
-[👉 See full explanation in docs](https://stunk.vercel.app/useDerive.html)
+[👉 See full explanation in docs](https://stunk.vercel.app/useAysncChunk.html)
 
 ## Contributing
 
