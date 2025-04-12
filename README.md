@@ -129,6 +129,8 @@ const ComputedExample = () => {
 
 ## React via useAsyncChunk
 
+Hook that manages that manages asynchronous state. It offers built-in reactivity, handling loading, error, and data states, ensuring the UI stays in sync with asynchronous operations.
+
 ```typescript
 import { asyncChunk } from "stunk";
 import { useAsyncChunk } from "stunk/react";
