@@ -158,6 +158,23 @@ const UserProfile = () => {
 
 👉 [See full explanation in docs](https://stunk.vercel.app/useAysncChunk.html)
 
+## React via useChunkValue
+
+Hook that subscribes to a Chunk and returns its current value. It is useful for read-only components that don’t need to modify the state.
+
+```typescript
+import { chunk } from "stunk";
+import { useChunkValue } from "stunk/react";
+
+const count = chunk(0);
+
+const CounterDisplay = () => {
+  const value = useChunkValue(count);
+
+  return <p>Count: {value}</p>;
+};
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
