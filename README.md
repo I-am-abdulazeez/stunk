@@ -86,6 +86,21 @@ const Counter = () => {
 };
 ```
 
+## React via useDerive
+
+```typescript
+import { chunk } from "stunk";
+import { useDerive } from "stunk/react";
+
+const count = chunk(0);
+
+const DoubledCount = () => {
+  const double = useDerive(count, (value) => value * 2);
+
+  return <p>Double: {double}</p>;
+};
+```
+
 👉 [See full explanation in docs](https://stunk.vercel.app/useChunk.html)
 
 ## Contributing
