@@ -88,6 +88,8 @@ const Counter = () => {
 
 ## React via useDerive
 
+Hook that lets you create a read-only derived state from a Chunk. It keeps the derived value reactive, automatically updating whenever the source Chunk changes.
+
 ```typescript
 import { chunk } from "stunk";
 import { useDerive } from "stunk/react";
