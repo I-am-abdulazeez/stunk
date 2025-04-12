@@ -111,6 +111,20 @@ const DoubledCount = () => {
 
 Hook that derives a computed value from one or more Chunks. It automatically re-evaluates whenever any of its dependencies change, ensuring efficient and reactive updates.
 
+```typescript
+import { chunk } from "stunk";
+import { useComputed } from "stunk/react";
+
+const count = chunk(2);
+const multiplier = chunk(3);
+
+const ComputedExample = () => {
+  const product = useComputed([count, multiplier], (c, m) => c * m);
+
+  return <p>Product: {product}</p>;
+};
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
