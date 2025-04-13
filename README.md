@@ -32,7 +32,7 @@ Read Docs:
 
 [Stunk](https://stunk.vercel.app/)
 
-## Creating a stunk
+## Creating a Chunk
 
 ```typescript
 import { chunk } from "stunk";
@@ -43,6 +43,8 @@ const count = chunk(0);
 // Create a chunk holding a string
 const name = chunk("Stunky, chunky");
 ```
+
+👉 [See full explanation in docs](https://stunk.vercel.app/chunk.html)
 
 ## Interacting with a Chunk
 
@@ -62,6 +64,8 @@ count.reset();
 // Destroy the chunk and all its subscribers.
 count.destroy();
 ```
+
+👉 [See full explanation in docs](https://stunk.vercel.app/chunk.html)
 
 ## React via useChunk
 
