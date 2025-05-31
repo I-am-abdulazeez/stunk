@@ -1,4 +1,4 @@
-import { Middleware } from "../core/core";
+import { chunk, Middleware } from "../core/core";
 
 export const nonNegativeValidator: Middleware<number> = (value, next) => {
   if (value < 0) {
