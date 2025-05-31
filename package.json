@@ -1,11 +1,14 @@
 {
   "name": "stunk",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue, Svelte, and Vanilla JS/TS applications.",
   "scripts": {
     "build": "tsc --project tsconfig.json && npm run build:cjs",
     "build:cjs": "echo 'module.exports = require(\"./index.js\");' > dist/index.cjs",
     "test": "tsc --project tsconfig.test.json && vitest",
+    "test:react17": "npm install react@^17.0.0 react-dom@^17.0.0 @types/react@^17.0.0 && npm test",
+    "test:react18": "npm install react@^18.0.0 react-dom@^18.0.0 @types/react@^18.0.0 && npm test",
+    "test:react19": "npm install react@^19.0.0 react-dom@^19.0.0 @types/react@^19.0.0 && npm test",
     "prepublishOnly": "vitest && tsc",
     "prepare": "npm run build",
     "lint": "eslint . --ext .js,.ts,.tsx,.vue"
@@ -79,7 +82,7 @@
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.2.0",
     "@testing-library/vue": "^8.1.0",
-    "@types/react": "^19.0.10",
+    "@types/react": "^18.0.0",
     "@typescript-eslint/eslint-plugin": "^8.26.1",
     "@typescript-eslint/parser": "^8.27.0",
     "@vitejs/plugin-react": "^4.3.4",
@@ -87,14 +90,22 @@
     "eslint": "^9.22.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "jsdom": "^26.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
     "typescript": "^5.0.0",
     "vitest": "^3.0.8",
     "vue": "^3.5.13"
   },
   "peerDependencies": {
-    "react": "^19.0.0",
+    "react": "^17.0.0 || ^18.0.0 || ^19.0.0",
     "vue": "^3.5.13"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
   }
 }
