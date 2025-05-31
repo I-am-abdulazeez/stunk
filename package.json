@@ -29,21 +29,21 @@
   ],
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     },
     "./middleware": {
-      "import": "./dist/middleware/index.js",
-      "types": "./dist/types/middleware/index.d.ts"
+      "types": "./dist/types/middleware/index.d.ts",
+      "import": "./dist/middleware/index.js"
     },
     "./react": {
-      "import": "./dist/use-react/index.js",
-      "types": "./dist/types/use-react/index.d.ts"
+      "types": "./dist/types/use-react/index.d.ts",
+      "import": "./dist/use-react/index.js"
     },
     "./vue": {
-      "import": "./dist/use-vue/index.js",
-      "types": "./dist/types/use-vue/index.d.ts"
+      "types": "./dist/types/use-vue/index.d.ts",
+      "import": "./dist/use-vue/index.js"
     },
     "./package.json": "./package.json"
   },
