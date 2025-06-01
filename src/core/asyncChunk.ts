@@ -36,6 +36,9 @@ export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState
 
   /** Reset the state to the initial value. */
   reset: () => void;
+
+  /** Clean up intervals and timeouts */
+  cleanup: () => void;
 }
 
 // Overloaded function signatures for backward compatibility
@@ -113,7 +116,6 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
   };
 
   const fetchData = async (params?: P, retries = retryCount, force = false): Promise<void> => {
-    // Don't fetch if disabled
     if (!enabled) return;
 
     // Don't fetch if data is fresh and not forcing
@@ -139,7 +141,6 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
         lastFetched: now
       });
 
-      // Set cache timeout
       setCacheTimeout();
     } catch (error) {
       if (retries > 0) {
@@ -221,6 +222,8 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
         }
       }
     },
+
+    cleanup,
 
     // Only add setParams if parameters were used
     ...(currentParams !== undefined ? {
