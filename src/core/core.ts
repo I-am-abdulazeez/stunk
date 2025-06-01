@@ -1,7 +1,8 @@
-import { processMiddleware, shallowEqual } from "../utils";
+import { processMiddleware, validateObjectShape } from "../utils";
 
 export type Subscriber<T> = (newValue: T) => void;
 export type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
+
 
 export interface Chunk<T> {
   /** Get the current value of the chunk. */
@@ -75,10 +76,13 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     let newValue: T;
 
     if (typeof newValueOrUpdater === 'function') {
-      newValue = (newValueOrUpdater as (currentValue: T) => T)(value);
+      const updaterFn = newValueOrUpdater as (currentValue: T) => T;
+      newValue = updaterFn(value);
     } else {
       newValue = newValueOrUpdater;
     }
+
+    validateObjectShape(value, newValue);
 
     const processedValue = processMiddleware(newValue, middleware);
 
