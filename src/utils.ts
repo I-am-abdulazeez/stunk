@@ -1,21 +1,49 @@
 import { chunk, Chunk, Middleware } from "./core/core";
 
 import { AsyncChunk } from "./core/asyncChunk";
-import { CombinedData, CombinedState, InferAsyncData } from "./core/types";
+import { CombinedData, CombinedState } from "./core/types";
 
-export function isValidChunkValue(value: any): boolean {
+export function isValidChunkValue(value: unknown): boolean {
   return value !== null && value !== undefined;
 }
 
-export function isChunk<T>(value: any): value is Chunk<T> {
-  return value &&
-    typeof value.get === 'function' &&
-    typeof value.set === 'function' &&
-    typeof value.update === 'function' &&
-    typeof value.subscribe === 'function' &&
-    typeof value.derive === 'function' &&
-    typeof value.reset === 'function' &&
-    typeof value.destroy === 'function';
+export function isValidChunk<T>(value: unknown, validateBehavior = false): value is Chunk<T> {
+  if (!isChunk(value)) {
+    return false;
+  }
+
+  if (!validateBehavior) {
+    return true;
+  }
+
+  try {
+    const currentValue = value.get();
+    value.set(currentValue);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isChunk<T>(value: unknown): value is Chunk<T> {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const chunk = value as Record<string, unknown>;
+  const requiredMethods = [
+    'get',
+    'set',
+    'update',
+    'subscribe',
+    'derive',
+    'reset',
+    'destroy'
+  ] as const;
+
+  return requiredMethods.every(method =>
+    typeof chunk[method] === 'function'
+  );
 }
 
 export function once<T>(fn: () => T): () => T {
@@ -32,12 +60,7 @@ export function once<T>(fn: () => T): () => T {
 
 export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   chunks: T
-): Chunk<{
-  loading: boolean;
-  error: Error | null;
-  data: { [K in keyof T]: InferAsyncData<T[K]> | null };
-}> {
-  // Create initial state with proper typing
+): Chunk<CombinedState<T>> {
   const initialData = Object.keys(chunks).reduce((acc, key) => {
     acc[key as keyof T] = null;
     return acc;
@@ -46,20 +69,35 @@ export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   const initialState: CombinedState<T> = {
     loading: true,
     error: null,
+    errors: {},
     data: initialData
   };
 
   const combined = chunk(initialState);
 
+  const chunkValues = Object.values(chunks);
+
   Object.entries(chunks).forEach(([key, asyncChunk]) => {
     asyncChunk.subscribe((state) => {
       const currentState = combined.get();
 
+      let hasLoading = false;
+      let firstError: Error | null = null;
+      const allErrors: Partial<{ [K in keyof T]: Error }> = {};
+
+      Object.entries(chunks).forEach(([chunkKey, chunk]) => {
+        const chunkState = chunk.get();
+        if (chunkState.loading) hasLoading = true;
+        if (chunkState.error) {
+          if (!firstError) firstError = chunkState.error;
+          allErrors[chunkKey as keyof T] = chunkState.error;
+        }
+      });
+
       combined.set({
-        loading: Object.values(chunks).some(chunk => chunk.get().loading),
-        error: Object.values(chunks)
-          .map(chunk => chunk.get().error)
-          .find(error => error !== null) || null,
+        loading: hasLoading,
+        error: firstError,
+        errors: allErrors,
         data: {
           ...currentState.data,
           [key]: state.data
@@ -141,4 +179,32 @@ export function shallowEqual<T>(a: T, b: T): boolean {
 
   // For primitive types, return false. Strict equality already handled by initial check
   return false;
+}
+
+export function validateObjectShape<T>(original: T, updated: T, path = ''): void {
+  if (typeof original === 'object' && original !== null && typeof updated === 'object' && updated !== null) {
+    if (Array.isArray(original) && Array.isArray(updated)) {
+      if (original.length > 0 && typeof original[0] === 'object') {
+        for (let i = 0; i < updated.length; i++) {
+          validateObjectShape(original[0], updated[i], `${path}[${i}]`);
+        }
+      }
+    } else if (!Array.isArray(original) && !Array.isArray(updated)) {
+      const originalKeys = Object.keys(original as object);
+      const updatedKeys = Object.keys(updated as object);
+      const extraKeys = updatedKeys.filter(key => !originalKeys.includes(key));
+
+      if (extraKeys.length > 0) {
+        const fullPath = path || 'root';
+        console.error(`🚨 Stunk: Unknown properties detected at '${fullPath}': ${extraKeys.join(', ')}. This might cause bugs.`);
+        console.error('Expected keys:', originalKeys);
+        console.error('Received keys:', updatedKeys);
+      }
+
+      // Recurse into common keys
+      for (const key of originalKeys) {
+        validateObjectShape((original as any)[key], (updated as any)[key], path ? `${path}.${key}` : key);
+      }
+    }
+  }
 }
