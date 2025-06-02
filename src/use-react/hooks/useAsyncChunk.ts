@@ -5,7 +5,10 @@ import { AsyncChunk, AsyncState } from "../../core/asyncChunk";
  * A hook that handles asynchronous state with built-in reactivity.
  * Provides loading, error, and data states with full asyncChunk functionality.
  */
-export function useAsyncChunk<T, E extends Error>(asyncChunk: AsyncChunk<T, E>) {
+export function useAsyncChunk<T, E extends Error = Error, P extends any[] = []>(
+  asyncChunk: AsyncChunk<T, E> | (AsyncChunk<T, E> & { setParams: (...params: P) => void }),
+  params?: P
+) {
   const [state, setState] = useState<AsyncState<T, E>>(() => asyncChunk.get());
 
   useEffect(() => {
@@ -15,11 +18,23 @@ export function useAsyncChunk<T, E extends Error>(asyncChunk: AsyncChunk<T, E>) 
 
     return () => {
       unsubscribe();
+    };
+  }, [asyncChunk]);
 
+  // Handle parameter updates automatically
+  useEffect(() => {
+    if (params && 'setParams' in asyncChunk) {
+      (asyncChunk as any).setParams(...params);
+    }
+  }, [asyncChunk, ...(params || [])]);
+
+  useEffect(() => {
+    return () => {
       asyncChunk.cleanup();
     };
   }, [asyncChunk]);
 
+  // Memoize methods to prevent unnecessary re-renders
   const reload = useCallback((...params: any[]) => {
     if ('setParams' in asyncChunk && params.length > 0) {
       return (asyncChunk as any).reload(...params);
@@ -50,7 +65,6 @@ export function useAsyncChunk<T, E extends Error>(asyncChunk: AsyncChunk<T, E>) 
   const { data, loading, error, lastFetched } = state;
 
   const result = {
-    state,
     data,
     loading,
     error,
