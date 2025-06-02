@@ -74,11 +74,24 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
 
   const { staleTime = 0, cacheTime = 5 * 60 * 1000, refetchInterval } = refreshConfig;
 
+  // let's expect params
+  const expectsParams = fetcher.length > 0;
+
   const initialState: AsyncState<T, E> = {
-    loading: enabled,
+    loading: enabled && !expectsParams,
     error: null,
     data: initialData,
     lastFetched: undefined,
+  };
+
+  const hasValidParams = (params?: P): boolean => {
+    if (!expectsParams) return true;
+
+    if (params === undefined) return false;
+    if (Array.isArray(params)) {
+      return params.every(p => p !== undefined && p !== null);
+    }
+    return true;
   };
 
   const baseChunk = chunk(initialState);
@@ -118,20 +131,28 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
   const fetchData = async (params?: P, retries = retryCount, force = false): Promise<void> => {
     if (!enabled) return;
 
-    // Don't fetch if data is fresh and not forcing
-    if (!force && !isStale() && baseChunk.get().data !== null && staleTime > 0) {
-      return;
-    }
-
     // Store params for reuse
     if (params !== undefined) {
       currentParams = params;
     }
 
+    //  Don't fetch if we don't have valid parameters (only matters if params expected)
+    if (!hasValidParams(currentParams)) {
+      baseChunk.set({ ...baseChunk.get(), loading: false });
+      return;
+    }
+
+    // Don't fetch if data is fresh and not forcing
+    if (!force && !isStale() && baseChunk.get().data !== null && staleTime > 0) {
+      return;
+    }
+
     baseChunk.set({ ...baseChunk.get(), loading: true, error: null });
 
     try {
-      const data = await fetcher(...(currentParams || ([] as unknown as P)));
+      const data = expectsParams
+        ? await fetcher(...currentParams!)
+        : await fetcher(...([] as unknown as P));
       const now = Date.now();
 
       baseChunk.set({
@@ -170,8 +191,8 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
     }, refetchInterval);
   }
 
-  // Initial fetch (existing behavior)
-  if (enabled) {
+  // Initial fetch
+  if (enabled && !expectsParams) {
     fetchData();
   }
 
@@ -212,7 +233,6 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
       if (enabled) {
         fetchData();
 
-        // Restart interval if configured
         if (refetchInterval && refetchInterval > 0) {
           intervalId = setInterval(() => {
             if (enabled) {
@@ -226,11 +246,13 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
     cleanup,
 
     // Only add setParams if parameters were used
-    ...(currentParams !== undefined ? {
-      setParams: (...params: P) => {
-        currentParams = params;
+    setParams: (...params: P) => {
+      currentParams = params;
+      if (enabled && hasValidParams(params)) {
+        fetchData(params);
       }
-    } : {})
+    },
+
   };
 
   return asyncChunkInstance;
