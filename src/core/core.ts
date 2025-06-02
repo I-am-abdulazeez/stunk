@@ -37,7 +37,7 @@ export function batch(callback: () => void) {
       isBatching = false;
       const chunks = Array.from(dirtyChunks); // Snapshot to avoid mutation issues
       dirtyChunks.clear(); // Clear early to prevent re-adds
-      chunks.forEach(id => {
+      chunks.forEach((id) => {
         const chunk = chunkRegistry.get(id);
         if (chunk) chunk.notify();
       });
@@ -45,7 +45,10 @@ export function batch(callback: () => void) {
   }
 }
 
-export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chunk<T> {
+export function chunk<T>(
+  initialValue: T,
+  middleware: Middleware<T>[] = []
+): Chunk<T> {
   if (initialValue === undefined || initialValue === null) {
     throw new Error("Initial value cannot be undefined or null.");
   }
@@ -55,7 +58,7 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
   const chunkId = chunkIdCounter++;
 
   const notify = () => {
-    subscribers.forEach(subscriber => subscriber(value));
+    subscribers.forEach((subscriber) => subscriber(value));
   };
 
   chunkRegistry.set(chunkId, { notify });
@@ -74,8 +77,21 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
   const set = (newValueOrUpdater: T | ((currentValue: T) => T)) => {
     let newValue: T;
 
-    if (typeof newValueOrUpdater === 'function') {
-      newValue = (newValueOrUpdater as (currentValue: T) => T)(value);
+    if (typeof newValueOrUpdater === "function") {
+      // This is the key fix - ensuring the returned value from the updater function
+      // is actually of type T without any additional properties
+      const updatedValue = (newValueOrUpdater as (currentValue: T) => unknown)(
+        value
+      );
+
+      // Type check to ensure the updated value conforms to type T
+      if (!isValidType<T>(updatedValue, value)) {
+        throw new TypeError(
+          "Returned value from updater function does not match the chunk's type shape"
+        );
+      }
+
+      newValue = updatedValue as T;
     } else {
       newValue = newValueOrUpdater;
     }
@@ -83,7 +99,14 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
     const processedValue = processMiddleware(newValue, middleware);
 
     if (processedValue !== value) {
-      value = processedValue as T & {};
+      // Ensure the processed value also matches the expected type structure
+      if (!isValidType<T>(processedValue, initialValue)) {
+        throw new TypeError(
+          "Processed value from middleware does not match the chunk's type shape"
+        );
+      }
+
+      value = processedValue as T & {}; // Use T & {} to maintain compatibility with existing code
       notifySubscribers();
     }
   };
@@ -133,4 +156,38 @@ export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chu
   };
 
   return { get, set, subscribe, derive, reset, destroy };
+}
+
+/**
+ * Helper function to validate that an updated value matches the expected type structure
+ * This is a runtime check to complement the TypeScript type checking
+ */
+function isValidType<T>(value: unknown, template: T): value is T {
+  // For primitive types
+  if (typeof template !== "object" || template === null) {
+    return typeof value === typeof template;
+  }
+
+  // For arrays
+  if (Array.isArray(template)) {
+    return Array.isArray(value);
+  }
+
+  // For objects
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  // Check that all keys in the value exist in the template
+  // This prevents adding arbitrary properties
+  const valueKeys = Object.keys(value as object);
+  const templateKeys = Object.keys(template as object);
+
+  for (const key of valueKeys) {
+    if (!templateKeys.includes(key)) {
+      return false; // Extra property found
+    }
+  }
+
+  return true;
 }
