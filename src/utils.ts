@@ -67,7 +67,7 @@ export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   }, {} as CombinedData<T>);
 
   const initialState: CombinedState<T> = {
-    loading: true,
+    loading: Object.keys(chunks).length > 0,
     error: null,
     errors: {},
     data: initialData
