@@ -40,7 +40,7 @@ jobs:
             echo "Version $VERSION already exists on NPM. Skipping publish."
             exit 0
           fi
-          pnpm publish --access public
+          pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
