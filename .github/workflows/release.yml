@@ -12,24 +12,25 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set Up Node.js
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: "npm"
+          node-version: "20"
+          cache: "pnpm"
 
-      - name: Clean Install Dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install --force
+      - name: Install dependencies
+        run: pnpm install
 
-      - name: Run Tests
-        run: npm test
+      - name: Run tests
+        run: pnpm test
 
-      - name: Clean and Build
-        run: |
-          rm -rf dist
-          npm run build
+      - name: Build
+        run: pnpm build
 
       - name: Publish to NPM
         run: |
@@ -39,7 +40,7 @@ jobs:
             echo "Version $VERSION already exists on NPM. Skipping publish."
             exit 0
           fi
-          npm publish --access public
+          pnpm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
