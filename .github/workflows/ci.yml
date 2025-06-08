@@ -6,19 +6,24 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set Up Node.js
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: "npm" # Cache npm dependencies
+          node-version: "20"
+          cache: "pnpm"
 
-      - name: Clean Install Dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install --force
+      - name: Install dependencies
+        run: pnpm install
 
-      - name: Run Tests
-        run: npm test
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
