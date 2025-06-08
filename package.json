@@ -1,15 +1,15 @@
 {
   "name": "stunk",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue, Svelte, and Vanilla JS/TS applications.",
   "scripts": {
-    "build": "tsc --project tsconfig.json && npm run build:cjs",
-    "build:cjs": "echo 'module.exports = require(\"./index.js\");' > dist/index.cjs",
-    "test": "tsc --project tsconfig.test.json && vitest",
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "test": "vitest",
     "test:react17": "npm install react@^17.0.0 react-dom@^17.0.0 @types/react@^17.0.0 && npm test",
     "test:react18": "npm install react@^18.0.0 react-dom@^18.0.0 @types/react@^18.0.0 && npm test",
     "test:react19": "npm install react@^19.0.0 react-dom@^19.0.0 @types/react@^19.0.0 && npm test",
-    "prepublishOnly": "vitest && tsc",
+    "prepublishOnly": "npm run build && vitest run",
     "prepare": "npm run build",
     "lint": "eslint . --ext .js,.ts,.tsx,.vue"
   },
@@ -23,6 +23,7 @@
     "url": "https://github.com/I-am-abdulazeez/stunk/issues"
   },
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist"
@@ -34,15 +35,15 @@
       "require": "./dist/index.cjs"
     },
     "./middleware": {
-      "types": "./dist/types/middleware/index.d.ts",
+      "types": "./dist/middleware/index.d.ts",
       "import": "./dist/middleware/index.js"
     },
     "./react": {
-      "types": "./dist/types/use-react/index.d.ts",
+      "types": "./dist/use-react/index.d.ts",
       "import": "./dist/use-react/index.js"
     },
     "./vue": {
-      "types": "./dist/types/use-vue/index.d.ts",
+      "types": "./dist/use-vue/index.d.ts",
       "import": "./dist/use-vue/index.js"
     },
     "./package.json": "./package.json"
@@ -75,6 +76,10 @@
     {
       "name": "AbdulAzeez",
       "url": "https://github.com/I-am-abdulazeez"
+    },
+    {
+      "name": "AbdulAzeez",
+      "url": "https://github.com/I-am-abdulazeez"
     }
   ],
   "license": "MIT",
@@ -92,6 +97,7 @@
     "jsdom": "^26.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
+    "tsup": "^8.5.0",
     "typescript": "^5.0.0",
     "vitest": "^3.0.8",
     "vue": "^3.5.13"
