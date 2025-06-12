@@ -2,7 +2,10 @@ import { processMiddleware, validateObjectShape } from "../utils";
 
 export type Subscriber<T> = (newValue: T) => void;
 export type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
-
+export type NamedMiddleware<T> = {
+  name?: string;
+  fn: Middleware<T>;
+};
 
 export interface Chunk<T> {
   /** Get the current value of the chunk. */
@@ -46,9 +49,9 @@ export function batch(callback: () => void) {
   }
 }
 
-export function chunk<T>(initialValue: T, middleware: Middleware<T>[] = []): Chunk<T> {
-  if (initialValue === undefined || initialValue === null) {
-    throw new Error("Initial value cannot be undefined or null.");
+export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMiddleware<T>)[] = []): Chunk<T> {
+  if (initialValue === null) {
+    throw new Error("Initial value cannot be null.");
   }
 
   let value = initialValue;
