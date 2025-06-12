@@ -1,10 +1,10 @@
-import { chunk, Chunk, Middleware } from "./core/core";
+import { chunk, Chunk, Middleware, NamedMiddleware } from "./core/core";
 
 import { AsyncChunk } from "./core/asyncChunk";
 import { CombinedData, CombinedState } from "./core/types";
 
 export function isValidChunkValue(value: unknown): boolean {
-  return value !== null && value !== undefined;
+  return value !== null;
 }
 
 export function isValidChunk<T>(value: unknown, validateBehavior = false): value is Chunk<T> {
@@ -109,14 +109,9 @@ export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   return combined;
 }
 
-export type NamedMiddleware<T> = {
-  name?: string;
-  fn: Middleware<T>;
-};
-
 export function processMiddleware<T>(initialValue: T, middleware: (Middleware<T> | NamedMiddleware<T>)[]): T {
-  if (initialValue === null || initialValue === undefined) {
-    throw new Error("Value cannot be null or undefined.");
+  if (initialValue === null) {
+    throw new Error("Value cannot be null.");
   }
 
   let currentValue = initialValue;
@@ -142,8 +137,8 @@ export function processMiddleware<T>(initialValue: T, middleware: (Middleware<T>
 
     if (!nextCalled) break;
 
-    if (nextValue === null || nextValue === undefined) {
-      throw new Error(`Middleware at index ${index} returned null or undefined value.`);
+    if (nextValue === null) {
+      throw new Error(`Middleware at index ${index} returned null value.`);
     }
 
     currentValue = nextValue;
