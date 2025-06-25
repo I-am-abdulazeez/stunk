@@ -34,7 +34,6 @@ export function isChunk<T>(value: unknown): value is Chunk<T> {
   const requiredMethods = [
     'get',
     'set',
-    'update',
     'subscribe',
     'derive',
     'reset',
