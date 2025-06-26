@@ -3,7 +3,7 @@
 > **Current Status**: 110+ GitHub stars | 2.95kb gzipped (core + React) | Production-ready
 
 ## ✅ Recently Completed (Excellent Progress!)
-- **4 comparison articles** (Stunk vs Zustand/Jotai/Pinia) - Deep dive content ✓
+- **4 comparison articles** (Stunk vs Zustand/Jotai) - Deep dive content ✓
 - **10+ showcase applications** - Real-world usage demonstrations ✓
 - **110+ GitHub stars** - Strong community foundation ✓
 - **2.95kb gzipped bundle** - Industry-leading bundle size ✓
