@@ -136,7 +136,7 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
       currentParams = params;
     }
 
-    //  Don't fetch if we don't have valid parameters (only matters if params expected)
+    // Don't fetch if we don't have valid parameters
     if (!hasValidParams(currentParams)) {
       baseChunk.set({ ...baseChunk.get(), loading: false });
       return;
@@ -150,9 +150,19 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
     baseChunk.set({ ...baseChunk.get(), loading: true, error: null });
 
     try {
-      const data = expectsParams
-        ? await fetcher(...currentParams!)
-        : await fetcher(...([] as unknown as P));
+      let data: T;
+
+      if (expectsParams) {
+        // Safe guard - we know currentParams is valid from hasValidParams check
+        if (!currentParams) {
+          throw new Error('Parameters required but not provided');
+        }
+        data = await fetcher(...currentParams);
+      } else {
+        // Safe guard - we know fetcher is a function that returns a Promise<T>
+        data = await (fetcher as () => Promise<T>)();
+      }
+
       const now = Date.now();
 
       baseChunk.set({
