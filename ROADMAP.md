@@ -3,7 +3,7 @@
 > **Current Status**: 110+ GitHub stars | 2.95kb gzipped (core + React) | Production-ready
 
 ## ✅ Recently Completed (Excellent Progress!)
-- **4 comparison articles** (Stunk vs Zustand/Jotai/Pinia) - Deep dive content ✓
+- **4 comparison articles** (Stunk vs Zustand/Jotai) - Deep dive content ✓
 - **10+ showcase applications** - Real-world usage demonstrations ✓
 - **110+ GitHub stars** - Strong community foundation ✓
 - **2.95kb gzipped bundle** - Industry-leading bundle size ✓
@@ -34,11 +34,11 @@ const fullNameChunk = computed(() => ({
 }))
 ```
 
-**Realistic Implementation Timeline:**
-- **Week 1-2:** Dependency tracking system research & prototype
-- **Week 3-4:** Implementation with Proxy-based detection
-- **Week 5-6:** Testing, edge cases, performance validation
-- **Week 7-8:** Documentation update, backward compatibility testing
+**Implementation Strategy:**
+- Build dependency tracking system that detects `.get()` calls during execution
+- Use function wrapping to intercept chunk access
+- Maintain backward compatibility with current API
+- Add automatic cleanup when dependencies change
 
 **Benefits:**
 - More intuitive and readable
