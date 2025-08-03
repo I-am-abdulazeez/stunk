@@ -34,13 +34,13 @@ export function useChunkForm<T extends Record<string, any>>(
     chunk.set({
       ...currentValues,
       [field]: value
-    })
+    });
 
     // Mark as touched
-    ;(formState.touched as any)[field] = true
+    (formState.touched as any)[field] = true;
 
     // Validate field
-    ;(formState.errors as any)[field] = validateField(field, value)
+    (formState.errors as any)[field] = validateField(field, value)
   }
 
   // Reset form
