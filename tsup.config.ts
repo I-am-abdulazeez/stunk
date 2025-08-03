@@ -18,7 +18,7 @@ export default defineConfig([
     entry: {
       'middleware/index': 'src/middleware/index.ts',
       'use-react/index': 'src/use-react/index.ts',
-      // 'use-vue/index': 'src/use-vue/index.ts',
+      'use-vue/index': 'src/use-vue/index.ts',
     },
     format: ['esm'],
     dts: true,
