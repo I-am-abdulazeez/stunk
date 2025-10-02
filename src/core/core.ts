@@ -22,6 +22,41 @@ export interface Chunk<T> {
   destroy: () => void;
 }
 
+// ============================================================================
+// DEPENDENCY TRACKING SYSTEM (for computed)
+// ============================================================================
+
+let activeEffect: Set<Chunk<any>> | null = null;
+
+/**
+ * Track dependencies during computed function execution
+ */
+export function trackDependencies<T>(fn: () => T): [T, Chunk<any>[]] {
+  const deps = new Set<Chunk<any>>();
+  const previousEffect = activeEffect;
+  activeEffect = deps;
+
+  try {
+    const result = fn();
+    return [result, Array.from(deps)];
+  } finally {
+    activeEffect = previousEffect;
+  }
+}
+
+/**
+ * Register that a chunk is being accessed (called internally by chunk.get())
+ */
+function trackChunkAccess(chunk: Chunk<any>) {
+  if (activeEffect) {
+    activeEffect.add(chunk);
+  }
+}
+
+// ============================================================================
+// BATCHING SYSTEM
+// ============================================================================
+
 let isBatching = false;
 const dirtyChunks = new Set<number>();
 const chunkRegistry = new Map<number, { notify: () => void }>();
@@ -49,6 +84,10 @@ export function batch(callback: () => void) {
   }
 }
 
+// ============================================================================
+// CHUNK IMPLEMENTATION
+// ============================================================================
+
 export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMiddleware<T>)[] = []): Chunk<T> {
   if (initialValue === null) {
     throw new Error("Initial value cannot be null.");
@@ -73,7 +112,11 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
     }
   };
 
-  const get = () => value;
+  const get = () => {
+    // Track this chunk access for computed dependency tracking
+    trackChunkAccess(chunkInstance);
+    return value;
+  };
 
   const set = (newValueOrUpdater: T | ((currentValue: T) => T)) => {
     let newValue: T;
@@ -139,5 +182,7 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
     return derivedChunk;
   };
 
-  return { get, set, subscribe, derive, reset, destroy };
+  const chunkInstance: Chunk<T> = { get, set, subscribe, derive, reset, destroy };
+
+  return chunkInstance;
 }
