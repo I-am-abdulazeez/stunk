@@ -8,59 +8,89 @@ export interface AsyncState<T, E extends Error> {
   lastFetched?: number;
 }
 
+export interface PaginationState {
+  page: number;
+  pageSize: number;
+  total?: number;
+  hasMore?: boolean;
+}
+
+export interface AsyncStateWithPagination<T, E extends Error> extends AsyncState<T, E> {
+  pagination?: PaginationState;
+}
+
 export interface RefreshConfig {
-  /** Time in milliseconds after which data becomes stale */
+  /** Time in ms after which data becomes stale */
   staleTime?: number;
-  /** Time in milliseconds to cache data before considering it expired */
+  /** Time in ms to cache data */
   cacheTime?: number;
-  /** Auto-refresh interval in milliseconds */
+  /** Auto-refresh interval in ms */
   refetchInterval?: number;
 }
 
-// Extend existing options without breaking changes
+export interface PaginationConfig {
+  /** Initial page number (default: 1) */
+  initialPage?: number;
+  /** Items per page (default: 10) */
+  pageSize?: number;
+  /** Whether to accumulate pages (infinite scroll) or replace */
+  mode?: 'replace' | 'accumulate';
+}
+
 export interface AsyncChunkOptExtended<T, E extends Error> extends AsyncChunkOpt<T, E> {
   refresh?: RefreshConfig;
-  /** Enable/disable the fetcher - useful for conditional fetching */
+  pagination?: PaginationConfig;
+  /** Enable/disable the fetcher */
   enabled?: boolean;
 }
 
-export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState<T, E>> {
-  /** Reload the data from the source. */
-  reload: () => Promise<void>;
+export interface FetcherResponse<T> {
+  data: T;
+  total?: number;
+  hasMore?: boolean;
+}
 
+export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncStateWithPagination<T, E>> {
+  /** Force reload data */
+  reload: (params?: any) => Promise<void>;
   /** Smart refresh - respects stale time */
-  refresh: () => Promise<void>;
-
-  /** Mutate the data directly. */
+  refresh: (params?: any) => Promise<void>;
+  /** Mutate data directly */
   mutate: (mutator: (currentData: T | null) => T) => void;
-
-  /** Reset the state to the initial value. */
+  /** Reset to initial state */
   reset: () => void;
-
-  /** Clean up intervals and timeouts */
+  /** Clean up intervals */
   cleanup: () => void;
 }
 
-// Overloaded function signatures for backward compatibility
-export function asyncChunk<T, E extends Error = Error>(
-  fetcher: () => Promise<T>,
-  options?: AsyncChunkOptExtended<T, E>
-): AsyncChunk<T, E>;
+export interface PaginatedAsyncChunk<T, E extends Error = Error> extends AsyncChunk<T, E> {
+  /** Load next page */
+  nextPage: () => Promise<void>;
+  /** Load previous page */
+  prevPage: () => Promise<void>;
+  /** Go to specific page */
+  goToPage: (page: number) => Promise<void>;
+  /** Reset pagination to first page */
+  resetPagination: () => Promise<void>;
+}
 
-export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
-  fetcher: (...params: P) => Promise<T>,
+// Overloaded signatures
+export function asyncChunk<T, E extends Error = Error>(
+  fetcher: () => Promise<T | FetcherResponse<T>>,
   options?: AsyncChunkOptExtended<T, E>
-): AsyncChunk<T, E> & {
-  /** Reload with new parameters */
-  reload: (...params: P) => Promise<void>;
-  /** Smart refresh with parameters */
-  refresh: (...params: P) => Promise<void>;
-  /** Set parameters for future calls */
-  setParams: (...params: P) => void;
+): AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>;
+
+export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  fetcher: (params: P & { page?: number; pageSize?: number }) => Promise<T | FetcherResponse<T>>,
+  options?: AsyncChunkOptExtended<T, E>
+): (AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>) & {
+  setParams: (params: Partial<P>) => void;
+  reload: (params?: Partial<P>) => Promise<void>;
+  refresh: (params?: Partial<P>) => Promise<void>;
 };
 
-export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
-  fetcher: (...params: P) => Promise<T>,
+export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  fetcher: (params?: P & { page?: number; pageSize?: number }) => Promise<T | FetcherResponse<T>>,
   options: AsyncChunkOptExtended<T, E> = {}
 ) {
   const {
@@ -69,46 +99,36 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
     retryCount = 0,
     retryDelay = 1000,
     refresh: refreshConfig = {},
+    pagination: paginationConfig,
     enabled = true,
   } = options;
 
   const { staleTime = 0, cacheTime = 5 * 60 * 1000, refetchInterval } = refreshConfig;
+  const isPaginated = !!paginationConfig;
+  const paginationMode = paginationConfig?.mode || 'replace';
 
-  // let's expect params
   const expectsParams = fetcher.length > 0;
 
-  const initialState: AsyncState<T, E> = {
+  const initialState: AsyncStateWithPagination<T, E> = {
     loading: enabled && !expectsParams,
     error: null,
     data: initialData,
     lastFetched: undefined,
-  };
-
-  const hasValidParams = (params?: P): boolean => {
-    if (!expectsParams) return true;
-
-    if (params === undefined) return false;
-    if (Array.isArray(params)) {
-      return params.every(p => p !== undefined && p !== null);
-    }
-    return true;
+    pagination: isPaginated ? {
+      page: paginationConfig.initialPage || 1,
+      pageSize: paginationConfig.pageSize || 10,
+    } : undefined,
   };
 
   const baseChunk = chunk(initialState);
-  let currentParams: P | undefined;
+  let currentParams: Partial<P> = {};
   let intervalId: number | null = null;
   let cacheTimeoutId: number | null = null;
 
   const isStale = () => {
     const state = baseChunk.get();
-    if (!state.lastFetched) return true;
+    if (!state.lastFetched || staleTime === 0) return true;
     return Date.now() - state.lastFetched > staleTime;
-  };
-
-  const isCacheExpired = () => {
-    const state = baseChunk.get();
-    if (!state.lastFetched) return true;
-    return Date.now() - state.lastFetched > cacheTime;
   };
 
   const clearCache = () => {
@@ -120,56 +140,71 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
   };
 
   const setCacheTimeout = () => {
-    if (cacheTimeoutId) {
-      clearTimeout(cacheTimeoutId);
-    }
+    if (cacheTimeoutId) clearTimeout(cacheTimeoutId);
     if (cacheTime > 0) {
       cacheTimeoutId = setTimeout(clearCache, cacheTime);
     }
   };
 
-  const fetchData = async (params?: P, retries = retryCount, force = false): Promise<void> => {
+  const fetchData = async (params?: Partial<P>, retries = retryCount, force = false): Promise<void> => {
     if (!enabled) return;
 
-    // Store params for reuse
+    // Update params if provided
     if (params !== undefined) {
-      currentParams = params;
+      currentParams = { ...currentParams, ...params };
     }
 
-    // Don't fetch if we don't have valid parameters
-    if (!hasValidParams(currentParams)) {
-      baseChunk.set({ ...baseChunk.get(), loading: false });
+    // Check staleness
+    if (!force && !isStale() && baseChunk.get().data !== null) {
       return;
     }
 
-    // Don't fetch if data is fresh and not forcing
-    if (!force && !isStale() && baseChunk.get().data !== null && staleTime > 0) {
-      return;
-    }
-
-    baseChunk.set({ ...baseChunk.get(), loading: true, error: null });
+    const state = baseChunk.get();
+    baseChunk.set({ ...state, loading: true, error: null });
 
     try {
-      let data: T;
+      let fetchParams: any = { ...currentParams };
 
-      if (expectsParams) {
-        // Safe guard - we know currentParams is valid from hasValidParams check
-        if (!currentParams) {
-          throw new Error('Parameters required but not provided');
-        }
-        data = await fetcher(...currentParams);
+      // Add pagination params if enabled
+      if (isPaginated && state.pagination) {
+        fetchParams.page = state.pagination.page;
+        fetchParams.pageSize = state.pagination.pageSize;
+      }
+
+      const result = expectsParams
+        ? await fetcher(fetchParams)
+        : await (fetcher as () => Promise<T | FetcherResponse<T>>)();
+
+      // Handle response format
+      let data: T;
+      let total: number | undefined;
+      let hasMore: boolean | undefined;
+
+      if (result && typeof result === 'object' && 'data' in result) {
+        const response = result as FetcherResponse<T>;
+        data = response.data;
+        total = response.total;
+        hasMore = response.hasMore;
       } else {
-        // Safe guard - we know fetcher is a function that returns a Promise<T>
-        data = await (fetcher as () => Promise<T>)();
+        data = result as T;
+      }
+
+      // Handle pagination accumulation
+      if (isPaginated && paginationMode === 'accumulate' && state.data && Array.isArray(state.data) && Array.isArray(data)) {
+        data = [...state.data, ...data] as T;
       }
 
       const now = Date.now();
-
       baseChunk.set({
         loading: false,
         error: null,
         data,
-        lastFetched: now
+        lastFetched: now,
+        pagination: isPaginated ? {
+          ...state.pagination!,
+          total,
+          hasMore,
+        } : undefined,
       });
 
       setCacheTimeout();
@@ -179,25 +214,23 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
         return fetchData(params, retries - 1, force);
       }
 
+      const state = baseChunk.get();
       baseChunk.set({
         loading: false,
         error: error as E,
-        data: baseChunk.get().data,
-        lastFetched: baseChunk.get().lastFetched
+        data: state.data,
+        lastFetched: state.lastFetched,
+        pagination: state.pagination,
       });
 
-      if (onError) {
-        onError(error as E);
-      }
+      if (onError) onError(error as E);
     }
   };
 
-  // Setup auto-refresh
+  // Auto-refresh setup
   if (refetchInterval && refetchInterval > 0 && enabled) {
     intervalId = setInterval(() => {
-      if (enabled) {
-        fetchData(currentParams, 0, false);
-      }
+      if (enabled) fetchData(undefined, 0, false);
     }, refetchInterval);
   }
 
@@ -217,37 +250,35 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
     }
   };
 
-  const asyncChunkInstance = {
+  const baseInstance = {
     ...baseChunk,
 
-    reload: async (...params: P) => {
-      await fetchData(params.length > 0 ? params : undefined, retryCount, true);
+    reload: async (params?: Partial<P>) => {
+      await fetchData(params, retryCount, true);
     },
 
-    refresh: async (...params: P) => {
-      await fetchData(params.length > 0 ? params : undefined, retryCount, false);
+    refresh: async (params?: Partial<P>) => {
+      await fetchData(params, retryCount, false);
     },
 
     mutate: (mutator: (currentData: T | null) => T) => {
-      const currentState = baseChunk.get();
-      const newData = mutator(currentState.data);
-      baseChunk.set({ ...currentState, data: newData });
+      const state = baseChunk.get();
+      const newData = mutator(state.data);
+      baseChunk.set({ ...state, data: newData });
     },
 
     reset: () => {
       cleanup();
+      currentParams = {};
       baseChunk.set({
         ...initialState,
-        loading: enabled
+        loading: enabled && !expectsParams
       });
-      if (enabled) {
+      if (enabled && !expectsParams) {
         fetchData();
-
         if (refetchInterval && refetchInterval > 0) {
           intervalId = setInterval(() => {
-            if (enabled) {
-              fetchData(currentParams, 0, false);
-            }
+            if (enabled) fetchData(undefined, 0, false);
           }, refetchInterval);
         }
       }
@@ -255,15 +286,80 @@ export function asyncChunk<T, E extends Error = Error, P extends any[] = []>(
 
     cleanup,
 
-    // Only add setParams if parameters were used
-    setParams: (...params: P) => {
-      currentParams = params;
-      if (enabled && hasValidParams(params)) {
-        fetchData(params);
+    setParams: (params: Partial<P>) => {
+      currentParams = { ...currentParams, ...params };
+      if (enabled) {
+        fetchData();
       }
     },
-
   };
 
-  return asyncChunkInstance;
+  // Add pagination methods if enabled
+  if (isPaginated) {
+    return {
+      ...baseInstance,
+
+      nextPage: async () => {
+        const state = baseChunk.get();
+        if (!state.pagination) return;
+
+        if (state.pagination.hasMore === false) return;
+
+        baseChunk.set({
+          ...state,
+          pagination: {
+            ...state.pagination,
+            page: state.pagination.page + 1,
+          }
+        });
+        await fetchData(currentParams, retryCount, true);
+      },
+
+      prevPage: async () => {
+        const state = baseChunk.get();
+        if (!state.pagination || state.pagination.page <= 1) return;
+
+        baseChunk.set({
+          ...state,
+          pagination: {
+            ...state.pagination,
+            page: state.pagination.page - 1,
+          }
+        });
+        await fetchData(currentParams, retryCount, true);
+      },
+
+      goToPage: async (page: number) => {
+        const state = baseChunk.get();
+        if (!state.pagination || page < 1) return;
+
+        baseChunk.set({
+          ...state,
+          pagination: {
+            ...state.pagination,
+            page,
+          }
+        });
+        await fetchData(currentParams, retryCount, true);
+      },
+
+      resetPagination: async () => {
+        const state = baseChunk.get();
+        if (!state.pagination) return;
+
+        const initialPage = paginationConfig?.initialPage || 1;
+        baseChunk.set({
+          ...state,
+          data: paginationMode === 'accumulate' ? initialData : state.data,
+          pagination: {
+            ...state.pagination,
+            page: initialPage,
+          }
+        });
+        await fetchData(currentParams, retryCount, true);
+      },
+    } as PaginatedAsyncChunk<T, E>;
+  }
+
+  return baseInstance;
 }
