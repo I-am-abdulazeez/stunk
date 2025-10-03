@@ -198,7 +198,7 @@ export function shallowEqual<T>(a: T, b: T): boolean {
   return false;
 }
 
-export function validateObjectShape<T>(original: T, updated: T, path = ''): void {
+export function validateObjectShape<T>(original: T, updated: T, path = '') {
   if (typeof original === 'object' && original !== null && typeof updated === 'object' && updated !== null) {
     if (Array.isArray(original) && Array.isArray(updated)) {
       if (original.length > 0 && typeof original[0] === 'object') {
