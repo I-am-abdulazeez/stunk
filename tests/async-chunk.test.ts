@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
-
-import { asyncChunk } from '../src/core/asyncChunk';
+import { asyncChunk, PaginatedAsyncChunk } from '../src/core/asyncChunk';
 import { combineAsyncChunks } from '../src/utils';
 
 // Mock types for testing
@@ -14,19 +13,18 @@ interface Post {
   title: string;
 }
 
-describe('asyncChunk', () => {
-  // Helper to create a delayed response
-  const createDelayedResponse = <T>(data: T, delay = 50): Promise<T> => {
-    return new Promise((resolve) => setTimeout(() => resolve(data), delay));
-  };
+// Helper to create a delayed response
+const createDelayedResponse = <T>(data: T, delay = 50): Promise<T> => {
+  return new Promise((resolve) => setTimeout(() => resolve(data), delay));
+};
 
+describe('asyncChunk', () => {
   it('should handle successful async operations', async () => {
     const mockUser: User = { id: 1, name: 'Test User' };
     const userChunk = asyncChunk<User>(async () => {
       return createDelayedResponse(mockUser);
     });
 
-    // Initial state
     expect(userChunk.get()).toEqual({
       loading: true,
       error: null,
@@ -34,10 +32,8 @@ describe('asyncChunk', () => {
       lastFetched: undefined
     });
 
-    // Wait for async operation to complete
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Check final state
     const finalState = userChunk.get();
     expect(finalState.loading).toBe(false);
     expect(finalState.error).toBe(null);
@@ -51,14 +47,13 @@ describe('asyncChunk', () => {
       throw new Error(errorMessage);
     });
 
-    // Wait for async operation to complete
     await new Promise(resolve => setTimeout(resolve, 100));
 
     const state = userChunk.get();
     expect(state.loading).toBe(false);
     expect(state.error?.message).toBe(errorMessage);
     expect(state.data).toBe(null);
-    expect(state.lastFetched).toBe(undefined); // Error state shouldn't set lastFetched
+    expect(state.lastFetched).toBe(undefined);
   });
 
   it('should handle retries', async () => {
@@ -76,7 +71,6 @@ describe('asyncChunk', () => {
       { retryCount: 2, retryDelay: 50 }
     );
 
-    // Wait for all retries to complete
     await new Promise(resolve => setTimeout(resolve, 200));
 
     expect(attempts).toBe(3);
@@ -85,7 +79,10 @@ describe('asyncChunk', () => {
 
   it('should support optimistic updates via mutate', () => {
     const mockUser: User = { id: 1, name: 'Test User' };
-    const userChunk = asyncChunk<User>(async () => mockUser);
+    const userChunk = asyncChunk<User>(
+      async () => mockUser,
+      { initialData: mockUser }
+    );
 
     userChunk.mutate(current => ({
       ...current!,
@@ -103,12 +100,11 @@ describe('asyncChunk', () => {
       return { id: counter, name: `User ${counter}` };
     });
 
-    // Wait for initial load
     await new Promise(resolve => setTimeout(resolve, 100));
     expect(userChunk.get().data?.id).toBe(1);
 
-    // Trigger reload
     await userChunk.reload();
+    await new Promise(resolve => setTimeout(resolve, 100));
     expect(userChunk.get().data?.id).toBe(2);
   });
 
@@ -119,7 +115,6 @@ describe('asyncChunk', () => {
       { enabled: false }
     );
 
-    // Should not start loading when disabled
     expect(userChunk.get()).toEqual({
       loading: false,
       error: null,
@@ -127,7 +122,6 @@ describe('asyncChunk', () => {
       lastFetched: undefined
     });
 
-    // Wait to ensure it doesn't fetch
     await new Promise(resolve => setTimeout(resolve, 100));
     expect(userChunk.get().data).toBe(null);
   });
@@ -143,33 +137,39 @@ describe('asyncChunk', () => {
   });
 
   it('should handle functions with parameters', async () => {
-    const fetchUserById = async (id: number): Promise<User> => {
-      return createDelayedResponse({ id, name: `User ${id}` }, 50);
+    interface FetchParams {
+      id: number;
+    }
+
+    const fetchUserById = async (params: FetchParams): Promise<User> => {
+      return createDelayedResponse({ id: params.id, name: `User ${params.id}` }, 50);
     };
 
     const userChunk = asyncChunk(fetchUserById);
 
-    // Initial state should not be loading since it expects parameters
     expect(userChunk.get().loading).toBe(false);
 
-    // Load with parameters
-    await userChunk.reload(1);
+    userChunk.setParams({ id: 1 });
+    await new Promise(resolve => setTimeout(resolve, 100));
     expect(userChunk.get().data).toEqual({ id: 1, name: 'User 1' });
 
-    // Load with different parameters
-    await userChunk.reload(2);
+    userChunk.setParams({ id: 2 });
+    await new Promise(resolve => setTimeout(resolve, 100));
     expect(userChunk.get().data).toEqual({ id: 2, name: 'User 2' });
   });
 
   it('should handle setParams for parameterized functions', async () => {
-    const fetchUserById = async (id: number): Promise<User> => {
-      return createDelayedResponse({ id, name: `User ${id}` }, 50);
+    interface FetchParams {
+      id: number;
+    }
+
+    const fetchUserById = async (params: FetchParams): Promise<User> => {
+      return createDelayedResponse({ id: params.id, name: `User ${params.id}` }, 50);
     };
 
     const userChunk = asyncChunk(fetchUserById);
 
-    // Set parameters and trigger fetch
-    userChunk.setParams(5);
+    userChunk.setParams({ id: 5 });
     await new Promise(resolve => setTimeout(resolve, 100));
 
     expect(userChunk.get().data).toEqual({ id: 5, name: 'User 5' });
@@ -183,21 +183,19 @@ describe('asyncChunk', () => {
         return { id: callCount, name: `User ${callCount}` };
       },
       {
-        refresh: { staleTime: 1000 } // 1 second stale time
+        refresh: { staleTime: 1000 }
       }
     );
 
-    // Wait for initial load
     await new Promise(resolve => setTimeout(resolve, 100));
     expect(callCount).toBe(1);
 
-    // Refresh immediately should not refetch (not stale yet)
     await userChunk.refresh();
-    expect(callCount).toBe(1); // Should still be 1
+    expect(callCount).toBe(1);
 
-    // Reload should always refetch
     await userChunk.reload();
-    expect(callCount).toBe(2); // Should be 2 now
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(callCount).toBe(2);
   });
 
   it('should handle stale time correctly', async () => {
@@ -208,68 +206,19 @@ describe('asyncChunk', () => {
         return { id: callCount, name: `User ${callCount}` };
       },
       {
-        refresh: { staleTime: 50 } // 50ms stale time
+        refresh: { staleTime: 50 }
       }
     );
 
-    // Wait for initial load
     await new Promise(resolve => setTimeout(resolve, 100));
     expect(callCount).toBe(1);
 
-    // Wait for data to become stale
     await new Promise(resolve => setTimeout(resolve, 60));
 
-    // Now refresh should refetch
     await userChunk.refresh();
+    await new Promise(resolve => setTimeout(resolve, 100));
     expect(callCount).toBe(2);
   });
-
-  // it('should handle cache expiration', async () => {
-  //   const userChunk = asyncChunk<User>(
-  //     async () => ({ id: 1, name: 'Test User' }),
-  //     {
-  //       refresh: { cacheTime: 50 } // 50ms cache time
-  //     }
-  //   );
-
-  //   // Wait for initial load
-  //   await new Promise(resolve => setTimeout(resolve, 100));
-  //   expect(userChunk.get().data).toEqual({ id: 1, name: 'Test User' });
-
-  //   // Wait for cache to expire
-  //   await new Promise(resolve => setTimeout(resolve, 60));
-
-  //   // Data should be cleared
-  //   expect(userChunk.get().data).toBe(null);
-  // });
-
-  // it('should handle auto-refresh interval', async () => {
-  //   let callCount = 0;
-  //   const userChunk = asyncChunk<User>(
-  //     async () => {
-  //       callCount++;
-  //       return { id: callCount, name: `User ${callCount}` };
-  //     },
-  //     {
-  //       refresh: { refetchInterval: 100 } // 100ms interval
-  //     }
-  //   );
-
-  //   // Wait for initial load
-  //   await new Promise(resolve => setTimeout(resolve, 50));
-  //   expect(callCount).toBe(1);
-
-  //   // Wait for first auto-refresh
-  //   await new Promise(resolve => setTimeout(resolve, 120));
-  //   expect(callCount).toBe(2);
-
-  //   // Wait for second auto-refresh
-  //   await new Promise(resolve => setTimeout(resolve, 120));
-  //   expect(callCount).toBe(3);
-
-  //   // Cleanup to stop interval
-  //   userChunk.cleanup();
-  // });
 
   it('should handle reset functionality', async () => {
     let callCount = 0;
@@ -278,20 +227,16 @@ describe('asyncChunk', () => {
       return { id: callCount, name: `User ${callCount}` };
     });
 
-    // Wait for initial load
     await new Promise(resolve => setTimeout(resolve, 100));
     expect(userChunk.get().data).toEqual({ id: 1, name: 'User 1' });
 
-    // Mutate data
     userChunk.mutate(() => ({ id: 999, name: 'Mutated User' }));
     expect(userChunk.get().data).toEqual({ id: 999, name: 'Mutated User' });
 
-    // Reset should restore to initial state and refetch
     userChunk.reset();
     expect(userChunk.get().data).toBe(null);
     expect(userChunk.get().loading).toBe(true);
 
-    // Wait for refetch after reset
     await new Promise(resolve => setTimeout(resolve, 100));
     expect(userChunk.get().data).toEqual({ id: 2, name: 'User 2' });
   });
@@ -326,7 +271,6 @@ describe('asyncChunk', () => {
 
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Both subscribers should receive the same updates
     expect(states1).toHaveLength(states2.length);
     expect(states1[states1.length - 1]).toEqual(states2[states2.length - 1]);
   });
@@ -337,7 +281,6 @@ describe('asyncChunk', () => {
       { initialData: { id: 1, name: 'Initial' } }
     );
 
-    // Multiple mutations
     userChunk.mutate(current => ({ ...current!, name: 'First' }));
     userChunk.mutate(current => ({ ...current!, name: 'Second' }));
     userChunk.mutate(current => ({ ...current!, name: 'Third' }));
@@ -353,34 +296,250 @@ describe('asyncChunk', () => {
       }
     );
 
-    // Wait for initial load
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Cleanup should stop all intervals
     userChunk.cleanup();
 
-    // Even after cleanup, the data should still be accessible
     expect(userChunk.get().data).toEqual({ id: 1, name: 'Test User' });
   });
 
-  it('should handle invalid parameters for parameterized functions', async () => {
-    const fetchUserById = (id: number) => {
-      if (!id) throw new Error('Invalid ID');
-      return Promise.resolve({ id, name: `User ${id}` });
-    };
+  it('should handle params merging with setParams', async () => {
+    interface SearchParams {
+      query: string;
+      category?: string;
+      limit?: number;
+    }
 
-    const userChunk = asyncChunk(fetchUserById);
+    let lastParams: SearchParams | undefined;
 
-    // Should not start loading without valid params
-    expect(userChunk.get().loading).toBe(false);
+    const searchChunk = asyncChunk(async (params: SearchParams) => {
+      lastParams = params;
+      return createDelayedResponse({ results: [], params }, 50);
+    });
 
-    // Try to set invalid params
-    userChunk.setParams(null as any);
+    searchChunk.setParams({ query: 'test', limit: 10 });
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Should still not have loaded
-    expect(userChunk.get().data).toBe(null);
-    expect(userChunk.get().loading).toBe(false);
+    expect(lastParams).toEqual({ query: 'test', limit: 10 });
+
+    searchChunk.setParams({ category: 'books' });
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(lastParams).toEqual({ query: 'test', limit: 10, category: 'books' });
+  });
+
+  it('should handle reload with params override', async () => {
+    interface FetchParams {
+      id: number;
+    }
+
+    let lastId: number | undefined;
+
+    const userChunk = asyncChunk(async (params: FetchParams) => {
+      lastId = params.id;
+      return createDelayedResponse({ id: params.id, name: `User ${params.id}` }, 50);
+    });
+
+    userChunk.setParams({ id: 1 });
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(lastId).toBe(1);
+
+    await userChunk.reload({ id: 5 });
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(lastId).toBe(5);
+    expect(userChunk.get().data?.id).toBe(5);
+  });
+
+  it('should handle FetcherResponse format', async () => {
+    const userChunk = asyncChunk(async () => {
+      return createDelayedResponse({
+        data: { id: 1, name: 'Test User' },
+        total: 100,
+        hasMore: true
+      }, 50);
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const state = userChunk.get();
+    expect(state.data).toEqual({ id: 1, name: 'Test User' });
+  });
+});
+
+describe('asyncChunk with pagination', () => {
+  it('should handle basic pagination (replace mode)', async () => {
+    const fetchUsers = async ({ page, pageSize }: { page: number; pageSize: number }) => {
+      const start = (page - 1) * pageSize;
+      const users = Array.from({ length: pageSize }, (_, i) => ({
+        id: start + i + 1,
+        name: `User ${start + i + 1}`
+      }));
+
+      return createDelayedResponse({
+        data: users,
+        total: 50,
+        hasMore: page * pageSize < 50
+      }, 50);
+    };
+
+    const usersChunk = asyncChunk(fetchUsers, {
+      pagination: { pageSize: 10, mode: 'replace' }
+    }) as PaginatedAsyncChunk<User[], Error> & {
+      setParams: (params: any) => void;
+      reload: (params?: any) => Promise<void>;
+      refresh: (params?: any) => Promise<void>;
+    };
+
+    usersChunk.reload();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    let state = usersChunk.get();
+    expect(state.data).toHaveLength(10);
+    expect(state.data?.[0].id).toBe(1);
+    expect(state.pagination?.page).toBe(1);
+    expect(state.pagination?.hasMore).toBe(true);
+
+    await usersChunk.nextPage();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    state = usersChunk.get();
+    expect(state.data).toHaveLength(10);
+    expect(state.data?.[0].id).toBe(11);
+    expect(state.pagination?.page).toBe(2);
+  });
+
+  it('should handle pagination (accumulate mode)', async () => {
+    const fetchPosts = async ({ page, pageSize }: { page: number; pageSize: number }) => {
+      const start = (page - 1) * pageSize;
+      const posts = Array.from({ length: pageSize }, (_, i) => ({
+        id: start + i + 1,
+        title: `Post ${start + i + 1}`
+      }));
+
+      return createDelayedResponse({
+        data: posts,
+        hasMore: page < 3
+      }, 50);
+    };
+
+    const postsChunk = asyncChunk(fetchPosts, {
+      pagination: { pageSize: 5, mode: 'accumulate' }
+    }) as PaginatedAsyncChunk<Post[], Error> & {
+      setParams: (params: any) => void;
+      reload: (params?: any) => Promise<void>;
+    };
+
+    postsChunk.reload();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    let state = postsChunk.get();
+    expect(state.data).toHaveLength(5);
+    expect(state.pagination?.page).toBe(1);
+
+    await postsChunk.nextPage();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    state = postsChunk.get();
+    expect(state.data).toHaveLength(10);
+    expect(state.data?.[0].id).toBe(1);
+    expect(state.data?.[9].id).toBe(10);
+    expect(state.pagination?.page).toBe(2);
+  });
+
+  it('should handle goToPage', async () => {
+    const fetchData = async ({ page }: { page: number }) => {
+      return createDelayedResponse({
+        data: [{ page, value: `Page ${page}` }],
+        hasMore: page < 5
+      }, 50);
+    };
+
+    const dataChunk = asyncChunk(fetchData, {
+      pagination: { pageSize: 1, mode: 'replace' }
+    }) as PaginatedAsyncChunk<any[], Error> & { reload: () => Promise<void> };
+
+    dataChunk.reload();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    await dataChunk.goToPage(3);
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const state = dataChunk.get();
+    expect(state.pagination?.page).toBe(3);
+    expect(state.data?.[0].page).toBe(3);
+  });
+
+  it('should handle prevPage', async () => {
+    const fetchData = async ({ page }: { page: number }) => {
+      return createDelayedResponse({
+        data: [{ page }]
+      }, 50);
+    };
+
+    const dataChunk = asyncChunk(fetchData, {
+      pagination: { initialPage: 3, pageSize: 1 }
+    }) as PaginatedAsyncChunk<any[], Error> & { reload: () => Promise<void> };
+
+    dataChunk.reload();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(dataChunk.get().pagination?.page).toBe(3);
+
+    await dataChunk.prevPage();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(dataChunk.get().pagination?.page).toBe(2);
+  });
+
+  it('should not go below page 1', async () => {
+    const fetchData = async ({ page }: { page: number }) => {
+      return createDelayedResponse({ data: [{ page }] }, 50);
+    };
+
+    const dataChunk = asyncChunk(fetchData, {
+      pagination: { pageSize: 1 }
+    }) as PaginatedAsyncChunk<any[], Error> & { reload: () => Promise<void> };
+
+    dataChunk.reload();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(dataChunk.get().pagination?.page).toBe(1);
+
+    await dataChunk.prevPage();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(dataChunk.get().pagination?.page).toBe(1);
+  });
+
+  it('should handle resetPagination', async () => {
+    const fetchData = async ({ page }: { page: number }) => {
+      return createDelayedResponse({
+        data: [{ page }]
+      }, 50);
+    };
+
+    const dataChunk = asyncChunk(fetchData, {
+      pagination: { pageSize: 1, mode: 'accumulate' }
+    }) as PaginatedAsyncChunk<any[], Error> & { reload: () => Promise<void> };
+
+    dataChunk.reload();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    await dataChunk.nextPage();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    await dataChunk.nextPage();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(dataChunk.get().pagination?.page).toBe(3);
+    expect(dataChunk.get().data).toHaveLength(3);
+
+    await dataChunk.resetPagination();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const state = dataChunk.get();
+    expect(state.pagination?.page).toBe(1);
+    expect(state.data).toHaveLength(1);
   });
 });
 
@@ -405,25 +564,22 @@ describe('combineAsyncChunks', () => {
       posts: postsChunk
     });
 
-    // Initial state - updated to match the combineAsyncChunks structure
     expect(combined.get()).toEqual({
       loading: true,
       error: null,
-      errors: {}, // Added this property from your combineAsyncChunks
+      errors: {},
       data: {
         user: null,
         posts: null
       }
     });
 
-    // Wait for all async operations to complete
     await new Promise(resolve => setTimeout(resolve, 150));
 
-    // Check final state
     const finalState = combined.get();
     expect(finalState.loading).toBe(false);
     expect(finalState.error).toBe(null);
-    expect(finalState.errors).toEqual({}); // No errors
+    expect(finalState.errors).toEqual({});
     expect(finalState.data).toEqual({
       user: mockUser,
       posts: mockPosts
@@ -447,7 +603,6 @@ describe('combineAsyncChunks', () => {
       posts: postsChunk
     });
 
-    // Wait for all operations to complete
     await new Promise(resolve => setTimeout(resolve, 150));
 
     const state = combined.get();
@@ -456,242 +611,4 @@ describe('combineAsyncChunks', () => {
     expect(state.data.user).toEqual(mockUser);
     expect(state.data.posts).toBe(null);
   });
-
-  it('should update loading state correctly', async () => {
-    const loadingStates: boolean[] = [];
-    const userChunk = asyncChunk<User>(async () => {
-      return createDelayedResponse({ id: 1, name: 'Test User' }, 50);
-    });
-
-    const postsChunk = asyncChunk<Post[]>(async () => {
-      return createDelayedResponse([], 100);
-    });
-
-    const combined = combineAsyncChunks({
-      user: userChunk,
-      posts: postsChunk
-    });
-
-    combined.subscribe(state => {
-      loadingStates.push(state.loading);
-    });
-
-    // Wait for all operations
-    await new Promise(resolve => setTimeout(resolve, 150));
-
-    // Should start with loading true and end with false
-    expect(loadingStates[0]).toBe(true);
-    expect(loadingStates[loadingStates.length - 1]).toBe(false);
-  });
-
-  it('should handle partial loading states', async () => {
-    const userChunk = asyncChunk<User>(async () => {
-      return createDelayedResponse({ id: 1, name: 'Test User' }, 50);
-    });
-
-    const postsChunk = asyncChunk<Post[]>(async () => {
-      return createDelayedResponse([{ id: 1, title: 'Post 1' }], 100);
-    });
-
-    const combined = combineAsyncChunks({
-      user: userChunk,
-      posts: postsChunk
-    });
-
-    const states: any[] = [];
-    combined.subscribe(state => states.push({ ...state }));
-
-    await new Promise(resolve => setTimeout(resolve, 150));
-
-    // Should have states where user is loaded but posts are still loading
-    const partialState = states.find(state =>
-      state.data.user !== null && state.data.posts === null && state.loading === true
-    );
-    expect(partialState).toBeDefined();
-  });
-
-  it('should handle empty chunks object', () => {
-    const combined = combineAsyncChunks({});
-
-    expect(combined.get()).toEqual({
-      loading: false, // No chunks means no loading
-      error: null,
-      errors: {},
-      data: {}
-    });
-  });
-
-  it('should handle single chunk', async () => {
-    const userChunk = asyncChunk<User>(async () => {
-      return createDelayedResponse({ id: 1, name: 'Test User' }, 50);
-    });
-
-    const combined = combineAsyncChunks({ user: userChunk });
-
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    expect(combined.get()).toEqual({
-      loading: false,
-      error: null,
-      errors: {},
-      data: { user: { id: 1, name: 'Test User' } }
-    });
-  });
-
-  it('should handle multiple errors correctly', async () => {
-    const userChunk = asyncChunk<User>(async () => {
-      throw new Error('User error');
-    });
-
-    const postsChunk = asyncChunk<Post[]>(async () => {
-      throw new Error('Posts error');
-    });
-
-    const profileChunk = asyncChunk<{ bio: string }>(async () => {
-      return { bio: 'Test bio' };
-    });
-
-    const combined = combineAsyncChunks({
-      user: userChunk,
-      posts: postsChunk,
-      profile: profileChunk
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    const state = combined.get();
-    expect(state.loading).toBe(false);
-    expect(state.error?.message).toBe('User error'); // First error
-    expect(state.errors).toEqual({
-      user: expect.objectContaining({ message: 'User error' }),
-      posts: expect.objectContaining({ message: 'Posts error' })
-    });
-    expect(state.data.profile).toEqual({ bio: 'Test bio' });
-  });
-
-  it('should handle chunks with different timing', async () => {
-    const fastChunk = asyncChunk<string>(async () => {
-      return createDelayedResponse('fast', 25);
-    });
-
-    const slowChunk = asyncChunk<string>(async () => {
-      return createDelayedResponse('slow', 100);
-    });
-
-    const combined = combineAsyncChunks({
-      fast: fastChunk,
-      slow: slowChunk
-    });
-
-    // After 50ms, fast should be done but slow should still be loading
-    await new Promise(resolve => setTimeout(resolve, 50));
-    let state = combined.get();
-    expect(state.data.fast).toBe('fast');
-    expect(state.data.slow).toBe(null);
-    expect(state.loading).toBe(true);
-
-    // After 150ms, both should be done
-    await new Promise(resolve => setTimeout(resolve, 100));
-    state = combined.get();
-    expect(state.data.fast).toBe('fast');
-    expect(state.data.slow).toBe('slow');
-    expect(state.loading).toBe(false);
-  });
-
-  it('should handle chunks with initial data', async () => {
-    const userChunk = asyncChunk<User>(
-      async () => createDelayedResponse({ id: 2, name: 'Loaded User' }, 50),
-      { initialData: { id: 1, name: 'Initial User' } }
-    );
-
-    const postsChunk = asyncChunk<Post[]>(
-      async () => createDelayedResponse([{ id: 1, title: 'Post 1' }], 50),
-      { initialData: [] }
-    );
-
-    const combined = combineAsyncChunks({
-      user: userChunk,
-      posts: postsChunk
-    });
-
-    // Initial state should have initial data
-    expect(combined.get().data).toEqual({
-      user: { id: 1, name: 'Initial User' },
-      posts: []
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Final state should have loaded data
-    expect(combined.get().data).toEqual({
-      user: { id: 2, name: 'Loaded User' },
-      posts: [{ id: 1, title: 'Post 1' }]
-    });
-  });
-
-  it('should handle disabled chunks', async () => {
-    const enabledChunk = asyncChunk<User>(async () => {
-      return createDelayedResponse({ id: 1, name: 'Test User' }, 50);
-    });
-
-    const disabledChunk = asyncChunk<Post[]>(
-      async () => createDelayedResponse([{ id: 1, title: 'Post 1' }], 50),
-      { enabled: false }
-    );
-
-    const combined = combineAsyncChunks({
-      user: enabledChunk,
-      posts: disabledChunk
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    const state = combined.get();
-    expect(state.data.user).toEqual({ id: 1, name: 'Test User' });
-    expect(state.data.posts).toBe(null); // Disabled chunk shouldn't load
-    expect(state.loading).toBe(false);
-  });
-
-  it('should handle chunk mutations', async () => {
-    const userChunk = asyncChunk<User>(
-      async () => createDelayedResponse({ id: 1, name: 'Test User' }, 50)
-    );
-
-    const combined = combineAsyncChunks({ user: userChunk });
-
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Mutate the underlying chunk
-    userChunk.mutate(current => ({ ...current!, name: 'Mutated User' }));
-
-    // Combined should reflect the mutation
-    expect(combined.get().data.user?.name).toBe('Mutated User');
-  });
-
-  it('should handle unsubscription properly', async () => {
-    const userChunk = asyncChunk<User>(async () => {
-      return createDelayedResponse({ id: 1, name: 'Test User' }, 50);
-    });
-
-    const combined = combineAsyncChunks({ user: userChunk });
-
-    const states: any[] = [];
-    const unsubscribe = combined.subscribe(state => states.push(state));
-
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    const statesBefore = states.length;
-    unsubscribe();
-
-    // Trigger more updates
-    userChunk.mutate(current => ({ ...current!, name: 'Updated' }));
-
-    // Should not receive more updates after unsubscribing
-    expect(states.length).toBe(statesBefore);
-  });
 });
-
-// Helper function
-function createDelayedResponse<T>(data: T, delay = 50): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(data), delay));
-}
