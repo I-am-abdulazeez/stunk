@@ -289,7 +289,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     setParams: (params: Partial<P>) => {
       currentParams = { ...currentParams, ...params };
       if (enabled) {
-        fetchData();
+        fetchData(params, retryCount, true); // Fetch immediately with new params
       }
     },
   };
