@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { AsyncChunk, AsyncStateWithPagination, PaginatedAsyncChunk, PaginationState } from "../../core/asyncChunk";
+import { AsyncChunk, AsyncStateWithPagination, PaginatedAsyncChunk, PaginationState } from "../../core/async-chunk";
 
 // Type guard to check if chunk has pagination methods
 function isPaginatedChunk<T, E extends Error>(
@@ -58,6 +58,26 @@ export interface UseAsyncChunkOptions<P extends Record<string, any> = {}> {
   /** Force fetch on mount, even without params (default: false) */
   fetchOnMount?: boolean;
 }
+
+export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  asyncChunk: PaginatedAsyncChunk<T, E> & { setParams: (params: Partial<P>) => void },
+  options?: UseAsyncChunkOptions<P> | Partial<P>
+): UseAsyncChunkResultWithParamsAndPagination<T, E, P>;
+
+export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  asyncChunk: PaginatedAsyncChunk<T, E>,
+  options?: UseAsyncChunkOptions<P> | Partial<P>
+): UseAsyncChunkResultWithPagination<T, E, P>;
+
+export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  asyncChunk: AsyncChunk<T, E> & { setParams: (params: Partial<P>) => void },
+  options?: UseAsyncChunkOptions<P> | Partial<P>
+): UseAsyncChunkResultWithParams<T, E, P>;
+
+export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  asyncChunk: AsyncChunk<T, E>,
+  options?: UseAsyncChunkOptions<P> | Partial<P>
+): UseAsyncChunkResult<T, E, P>;
 
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   asyncChunk: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E> | (AsyncChunk<T, E> & { setParams: (params: Partial<P>) => void }),

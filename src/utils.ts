@@ -1,6 +1,6 @@
 import { chunk, Chunk, Middleware, NamedMiddleware } from "./core/core";
 
-import { AsyncChunk } from "./core/asyncChunk";
+import { AsyncChunk } from "./core/async-chunk";
 import { CombinedData, CombinedState } from "./core/types";
 
 export function isValidChunkValue(value: unknown): boolean {
@@ -57,6 +57,10 @@ export function once<T>(fn: () => T): () => T {
   };
 };
 
+/**
+ * Combines multiple async chunks into a single chunk.
+ * The combined chunk tracks loading, error, and data states from all source chunks.
+ */
 export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   chunks: T
 ): Chunk<CombinedState<T>> {
@@ -74,25 +78,31 @@ export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
 
   const combined = chunk(initialState);
 
-  const chunkValues = Object.values(chunks);
-
+  // Subscribe to each async chunk
   Object.entries(chunks).forEach(([key, asyncChunk]) => {
     asyncChunk.subscribe((state) => {
       const currentState = combined.get();
 
+      // Recalculate loading and error states from all chunks
       let hasLoading = false;
       let firstError: Error | null = null;
       const allErrors: Partial<{ [K in keyof T]: Error }> = {};
 
       Object.entries(chunks).forEach(([chunkKey, chunk]) => {
         const chunkState = chunk.get();
-        if (chunkState.loading) hasLoading = true;
+
+        // Check loading state
+        if (chunkState.loading) {
+          hasLoading = true;
+        }
+        // Collect errors
         if (chunkState.error) {
           if (!firstError) firstError = chunkState.error;
           allErrors[chunkKey as keyof T] = chunkState.error;
         }
       });
 
+      // Update combined state
       combined.set({
         loading: hasLoading,
         error: firstError,
@@ -188,7 +198,7 @@ export function shallowEqual<T>(a: T, b: T): boolean {
   return false;
 }
 
-export function validateObjectShape<T>(original: T, updated: T, path = ''): void {
+export function validateObjectShape<T>(original: T, updated: T, path = '') {
   if (typeof original === 'object' && original !== null && typeof updated === 'object' && updated !== null) {
     if (Array.isArray(original) && Array.isArray(updated)) {
       if (original.length > 0 && typeof original[0] === 'object') {
