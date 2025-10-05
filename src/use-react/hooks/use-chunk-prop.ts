@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useChunkValue } from "./useChunkValue";
+import { useChunkValue } from "./use-chunk-value";
 
 import type { Chunk } from "../../core/core";
 
