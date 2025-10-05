@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 
-import { useChunk } from "./useChunk";
+import { useChunk } from "./use-chunk";
 import type { Chunk } from "../../core/core";
 
 /**

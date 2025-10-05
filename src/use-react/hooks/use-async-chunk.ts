@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { AsyncChunk, AsyncStateWithPagination, PaginatedAsyncChunk, PaginationState } from "../../core/asyncChunk";
+import { AsyncChunk, AsyncStateWithPagination, PaginatedAsyncChunk, PaginationState } from "../../core/async-chunk";
 
 // Type guard to check if chunk has pagination methods
 function isPaginatedChunk<T, E extends Error>(

@@ -1,7 +1,7 @@
 {
   "name": "stunk",
-  "version": "2.6.0",
-  "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue, Svelte, and Vanilla JS/TS applications.",
+  "version": "2.7.1",
+  "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue(WIP), Svelte(Coming soon), and Vanilla JS/TS applications.",
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",
@@ -78,8 +78,12 @@
       "url": "https://github.com/I-am-abdulazeez"
     },
     {
-      "name": "AbdulAzeez",
-      "url": "https://github.com/I-am-abdulazeez"
+      "name": "Chiboy",
+      "url": "https://github.com/chibx"
+    },
+    {
+      "name": "Idris",
+      "url": "https://github.com/Dreezy305"
     }
   ],
   "license": "MIT",

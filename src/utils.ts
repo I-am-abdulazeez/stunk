@@ -1,6 +1,6 @@
 import { chunk, Chunk, Middleware, NamedMiddleware } from "./core/core";
 
-import { AsyncChunk } from "./core/asyncChunk";
+import { AsyncChunk } from "./core/async-chunk";
 import { CombinedData, CombinedState } from "./core/types";
 
 export function isValidChunkValue(value: unknown): boolean {
