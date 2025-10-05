@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { asyncChunk, PaginatedAsyncChunk } from '../src/core/asyncChunk';
+import { asyncChunk, PaginatedAsyncChunk } from '../src/core/async-chunk';
 import { combineAsyncChunks } from '../src/utils';
 
 // Mock types for testing
