@@ -13,48 +13,59 @@ export interface Computed<T> extends Chunk<T> {
  * Dependencies are tracked by monitoring which chunks call .get() during execution.
  */
 export function computed<T>(computeFn: () => T): Computed<T> {
-  // Track dependencies on first run
-  const [initialValue, dependencies] = trackDependencies(computeFn);
+  const [initialValue, initialDeps] = trackDependencies(computeFn);
 
   let cachedValue = initialValue;
+  let dependencies = initialDeps;
+  let isDirty = false;
+  let unsubs: Array<() => void> = [];
+  let isRecomputing = false; // ← FLAG TO PREVENT RE-ENTRANCY
+
   const computedChunk = chunk(cachedValue);
   const originalSet = computedChunk.set;
-  let isDirty = false;
-  let lastDependencyValues = dependencies.map(dep => dep.get());
 
   const recompute = () => {
-    // Check if any dependency changed
-    let hasChanges = false;
-    for (let i = 0; i < dependencies.length; i++) {
-      const newValue = dependencies[i].get();
-      if (newValue !== lastDependencyValues[i]) {
-        lastDependencyValues[i] = newValue;
-        hasChanges = true;
-      }
+    if (isRecomputing) {
+      return; // Already recomputing, skip
     }
 
-    if (hasChanges) {
-      // Re-run the compute function (dependencies are already tracked)
-      const newValue = computeFn();
+    isRecomputing = true; // ← SET FLAG
 
-      // Skip update if value hasn't actually changed
-      if (newValue !== cachedValue) {
-        // Use shallowEqual for objects to avoid unnecessary updates
-        const shouldUpdate = typeof newValue !== 'object' ||
-          typeof cachedValue !== 'object' ||
-          !shallowEqual(newValue, cachedValue);
+    try {
+      // Re-track dependencies on every computation
+      const [newValue, newDeps] = trackDependencies(computeFn);
 
-        if (shouldUpdate) {
-          cachedValue = newValue;
-          originalSet(newValue);
-        }
+      // Update subscriptions if dependencies changed
+      if (!shallowEqual(newDeps, dependencies)) {
+        unsubs.forEach(unsub => unsub());
+        unsubs = newDeps.map(dep =>
+          dep.subscribe(() => {
+            isDirty = true;
+            recompute();
+          })
+        );
+        dependencies = newDeps;
       }
+
+      // Check if value changed
+      const shouldUpdate =
+        typeof newValue === 'object' && typeof cachedValue === 'object'
+          ? !shallowEqual(newValue, cachedValue)
+          : newValue !== cachedValue;
+
+      if (shouldUpdate) {
+        cachedValue = newValue;
+        originalSet(newValue);
+      }
+
       isDirty = false;
+    } finally {
+      isRecomputing = false; // ← ALWAYS RESET FLAG
     }
   };
 
-  // Subscribe to all tracked dependencies
-  const unsubs = dependencies.map(dep =>
+  // Initial subscriptions
+  unsubs = dependencies.map(dep =>
     dep.subscribe(() => {
       isDirty = true;
       recompute();
@@ -70,22 +81,10 @@ export function computed<T>(computeFn: () => T): Computed<T> {
     },
 
     recompute,
-
     isDirty: () => isDirty,
 
     set: () => {
-      throw new Error('Cannot set values directly on computed. Modify the source chunk instead.');
-    },
-
-    reset: () => {
-      dependencies.forEach(dep => {
-        if (typeof dep.reset === 'function') {
-          dep.reset();
-        }
-      });
-      isDirty = true;
-      recompute();
-      return cachedValue;
+      throw new Error('Cannot set computed values directly. Modify source chunks instead.');
     },
 
     destroy: () => {
