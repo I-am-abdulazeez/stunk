@@ -23,9 +23,11 @@ export interface Chunk<T> {
   /** Destroy the chunk and all its subscribers. */
   destroy: () => void;
 }
-export interface ReadOnlyChunk<T> extends Omit<Chunk<T>, 'set' | 'reset'> {
+export interface ReadOnlyChunk<T> extends Omit<Chunk<T>, 'set' | 'reset' | 'derive'> {
   set?: never;
   reset?: never;
+  /** Create a derived chunk based on this chunk's value. */
+  derive: <D>(fn: (value: T) => D) => ReadOnlyChunk<D>;
 }
 
 // ============================================================================
