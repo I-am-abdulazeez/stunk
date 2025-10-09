@@ -149,7 +149,6 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
       throw new Error("Callback must be a function.");
     }
     subscribers.add(callback);
-    callback(value);
     return () => subscribers.delete(callback);
   };
 
