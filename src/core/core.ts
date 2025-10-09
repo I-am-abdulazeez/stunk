@@ -10,6 +10,8 @@ export type NamedMiddleware<T> = {
 export interface Chunk<T> {
   /** Get the current value of the chunk. */
   get: () => T;
+  /** Peek at the current value without tracking dependencies. */
+  peek: () => T;
   /** Set a new value for the chunk & Update existing value efficiently. */
   set: (newValueOrUpdater: T | ((currentValue: T) => T)) => void;
   /** Subscribe to changes in the chunk. Returns an unsubscribe function. */
@@ -118,6 +120,10 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
     return value;
   };
 
+  const peek = () => {
+    return value;
+  }
+
   const set = (newValueOrUpdater: T | ((currentValue: T) => T)) => {
     let newValue: T;
 
@@ -182,7 +188,7 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
     return derivedChunk;
   };
 
-  const chunkInstance: Chunk<T> = { get, set, subscribe, derive, reset, destroy };
+  const chunkInstance: Chunk<T> = { get, peek, set, subscribe, derive, reset, destroy };
 
   return chunkInstance;
 }
