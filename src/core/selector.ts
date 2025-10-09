@@ -1,5 +1,5 @@
 import { shallowEqual } from "../utils";
-import { Chunk, chunk } from "./core";
+import { chunk, Chunk, ReadOnlyChunk } from "./core";
 
 export interface SelectOptions {
   /**
@@ -17,27 +17,23 @@ export interface SelectOptions {
  * @param options Optional settings for shallow equality comparison.
  * @returns A read-only derived chunk.
  */
-
 export function select<T, S>(
   sourceChunk: Chunk<T>,
   selector: (value: T) => S,
   options: SelectOptions = {}
-): Chunk<S> {
+): ReadOnlyChunk<S> {
   const { useShallowEqual = false } = options;
 
-  let prevSourceValue = sourceChunk.get();
-  let currentResult = selector(prevSourceValue);
+  const initialValue = sourceChunk.get();
+  let currentResult = selector(initialValue);
 
   const derivedChunk = chunk(currentResult);
 
   const update = () => {
-    const newSourceValue = sourceChunk.get();
-    const newResult = selector(newSourceValue);
+    const sourceValue = sourceChunk.get();
+    const newResult = selector(sourceValue);
 
-    // Always update the reference to source value
-    prevSourceValue = newSourceValue;
-
-    // Check if the result has changed
+    // Check if the selected result has changed
     const resultChanged = useShallowEqual
       ? !shallowEqual(newResult, currentResult)
       : newResult !== currentResult;
@@ -50,16 +46,11 @@ export function select<T, S>(
 
   const unsubscribe = sourceChunk.subscribe(update);
 
+  const { set: _omitSet, reset: _omitReset, ...chunkWithoutSetReset } = derivedChunk;
+
   return {
-    get: () => derivedChunk.get(),
-    set: () => {
-      throw new Error('Cannot set values directly on a selector. Modify the source chunk instead.');
-    },
-    subscribe: derivedChunk.subscribe,
-    derive: <D>(fn: (value: S) => D) => select(derivedChunk, fn, options), // Pass options to nested selectors
-    reset: () => {
-      throw new Error('Cannot reset a selector chunk. Reset the source chunk instead.');
-    },
+    ...chunkWithoutSetReset,
+    derive: <D>(fn: (value: S) => D) => select(derivedChunk, fn, options),
     destroy: () => {
       unsubscribe();
       derivedChunk.destroy();
