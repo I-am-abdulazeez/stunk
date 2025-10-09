@@ -1,7 +1,7 @@
-import { Chunk, chunk, trackDependencies } from "./core";
+import { Chunk, chunk, trackDependencies, ReadOnlyChunk } from "./core";
 import { shallowEqual } from "../utils";
 
-export interface Computed<T> extends Chunk<T> {
+export interface Computed<T> extends ReadOnlyChunk<T> {
   /** Checks if the computed value needs to be recalculated due to dependency changes. */
   isDirty: () => boolean;
   /** Manually forces recalculation of the computed value from its dependencies. */
@@ -72,21 +72,19 @@ export function computed<T>(computeFn: () => T): Computed<T> {
     })
   );
 
-  return {
-    ...computedChunk,
+  const { set: _omitSet, reset: _omitReset, derive: _derive, ...chunkWithoutSetReset } = computedChunk;
 
+  return {
+    ...chunkWithoutSetReset,
     get: () => {
       if (isDirty) recompute();
       return cachedValue;
     },
-
+    derive: <D>(fn: (value: T) => D): ReadOnlyChunk<D> => {
+      return computed(() => fn(cachedValue));
+    },
     recompute,
     isDirty: () => isDirty,
-
-    set: () => {
-      throw new Error('Cannot set computed values directly. Modify source chunks instead.');
-    },
-
     destroy: () => {
       unsubs.forEach(unsub => unsub());
       computedChunk.destroy?.();
