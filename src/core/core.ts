@@ -23,6 +23,10 @@ export interface Chunk<T> {
   /** Destroy the chunk and all its subscribers. */
   destroy: () => void;
 }
+export interface ReadOnlyChunk<T> extends Omit<Chunk<T>, 'set' | 'reset'> {
+  set?: never;
+  reset?: never;
+}
 
 // ============================================================================
 // DEPENDENCY TRACKING SYSTEM (for computed)
