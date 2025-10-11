@@ -24,7 +24,7 @@ test("Chunk should notify subscribers on value change", () => {
   chunky.set(10);
   expect(callback).toHaveBeenCalledWith(10);
 
-  unsubscribe(); // Ensure cleanup after test
+  unsubscribe();
 });
 
 test("Chunk should notify multiple subscribers correctly", () => {
@@ -44,22 +44,22 @@ test("Chunk should notify multiple subscribers correctly", () => {
   unsubscribe2();
 });
 
+// ✅ UPDATED: No initial subscription call
 test("Chunk should allow unsubscribing from updates", () => {
   const chunky = chunk<number>(0);
   const callback = vi.fn();
   const unsubscribe = chunky.subscribe(callback);
 
-  // Initial subscription call
-  expect(callback).toHaveBeenCalledWith(0);
-  expect(callback).toHaveBeenCalledTimes(1);
+  // No initial subscription call anymore
+  expect(callback).toHaveBeenCalledTimes(0);
 
   chunky.set(5);
   expect(callback).toHaveBeenCalledWith(5);
-  expect(callback).toHaveBeenCalledTimes(2);
+  expect(callback).toHaveBeenCalledTimes(1);
 
   unsubscribe();
   chunky.set(10);
-  expect(callback).toHaveBeenCalledTimes(2);
+  expect(callback).toHaveBeenCalledTimes(1); // Still 1, not called after unsubscribe
 });
 
 describe("Chunk Derivation", () => {
@@ -76,8 +76,10 @@ describe("Chunk Derivation", () => {
 
     expect(count.get()).toBe(5);
     expect(doubleCount.get()).toBe(10);
-    expect(countSpy).toHaveBeenCalledWith(5);
-    expect(doubleCountSpy).toHaveBeenCalledWith(10);
+
+    // No initial calls
+    expect(countSpy).toHaveBeenCalledTimes(0);
+    expect(doubleCountSpy).toHaveBeenCalledTimes(0);
 
     // Update count and verify updates
     count.set(10);
@@ -97,7 +99,7 @@ describe("Chunk Derivation", () => {
     // Setting the same value
     count.set(5);
     expect(doubleCount.get()).toBe(10);
-    expect(doubleCountSpy).toHaveBeenCalledTimes(1);
+    expect(doubleCountSpy).toHaveBeenCalledTimes(0); // No change, so no notification
   });
 });
 
@@ -125,21 +127,15 @@ describe("Chunk destroy", () => {
     const countUnsubscribe = countChunk.subscribe(countCallback);
     const anotherUnsubscribe = anotherChunk.subscribe(anotherCallback);
 
-    // Verify initial subscription calls
-    expect(countCallback).toHaveBeenCalledTimes(1);
-    expect(countCallback).toHaveBeenCalledWith(0);
-    expect(anotherCallback).toHaveBeenCalledTimes(1);
-    expect(anotherCallback).toHaveBeenCalledWith(0);
-
-    // Clear the mocks to start fresh
-    countCallback.mockClear();
-    anotherCallback.mockClear();
+    // No initial calls
+    expect(countCallback).toHaveBeenCalledTimes(0);
+    expect(anotherCallback).toHaveBeenCalledTimes(0);
 
     // Cleanup subscriptions before destroy
     countUnsubscribe();
     anotherUnsubscribe();
 
-    // Now destroy the chunks - no warning should appear
+    // Now destroy the chunks
     countChunk.destroy();
     anotherChunk.destroy();
 
@@ -157,7 +153,7 @@ describe("Chunk destroy", () => {
     countChunk.set(10);
     anotherChunk.set(20);
 
-    // Destroy the chunks (no subscribers at this point, so no warning)
+    // Destroy the chunks
     countChunk.destroy();
     anotherChunk.destroy();
 
@@ -168,9 +164,13 @@ describe("Chunk destroy", () => {
     const newCountUnsubscribe = countChunk.subscribe(newCountCallback);
     const newAnotherUnsubscribe = anotherChunk.subscribe(newAnotherCallback);
 
-    // Should receive initial values
-    expect(newCountCallback).toHaveBeenCalledWith(0);
-    expect(newAnotherCallback).toHaveBeenCalledWith(0);
+    // Should not receive initial values (no initial call)
+    expect(newCountCallback).toHaveBeenCalledTimes(0);
+    expect(newAnotherCallback).toHaveBeenCalledTimes(0);
+
+    // But get() should return initial values
+    expect(countChunk.get()).toBe(0);
+    expect(anotherChunk.get()).toBe(0);
 
     newCountUnsubscribe();
     newAnotherUnsubscribe();
@@ -193,9 +193,6 @@ describe("chunk update", () => {
     const store = chunk(5);
     const subscriber = vi.fn();
     store.subscribe(subscriber);
-
-    // Reset the mock to ignore initial subscription call
-    subscriber.mockReset();
 
     // Update to same value
     store.set((value) => value);
@@ -241,7 +238,6 @@ describe("Chunk Shallow Check", () => {
     const numChunk = chunk(1);
     const callback = vi.fn();
     numChunk.subscribe(callback);
-    callback.mockClear();
 
     batch(() => {
       numChunk.set(1);
@@ -254,7 +250,6 @@ describe("Chunk Shallow Check", () => {
     const numChunk = chunk(1);
     const callback = vi.fn();
     numChunk.subscribe(callback);
-    callback.mockClear();
 
     batch(() => {
       numChunk.set(2);
@@ -268,7 +263,6 @@ describe("Chunk Shallow Check", () => {
     const objChunk = chunk({ a: 1 });
     const callback = vi.fn();
     objChunk.subscribe(callback);
-    callback.mockClear();
 
     batch(() => {
       objChunk.set({ a: 2 });
@@ -276,5 +270,64 @@ describe("Chunk Shallow Check", () => {
 
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenLastCalledWith({ a: 2 });
+  });
+});
+
+// ✅ NEW TEST: peek() doesn't trigger dependency tracking
+describe("Chunk peek()", () => {
+  it("should return current value without tracking dependencies", () => {
+    const count = chunk(5);
+
+    expect(count.peek()).toBe(5);
+
+    count.set(10);
+    expect(count.peek()).toBe(10);
+  });
+
+  it("should not trigger subscriptions", () => {
+    const count = chunk(5);
+    const callback = vi.fn();
+
+    count.subscribe(callback);
+
+    // Peek shouldn't trigger callback
+    count.peek();
+    expect(callback).toHaveBeenCalledTimes(0);
+
+    // But set should
+    count.set(10);
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(10);
+  });
+});
+
+// ✅ NEW TEST: undefined is rejected
+describe("Chunk initialization", () => {
+  it("should reject undefined as initial value", () => {
+    expect(() => chunk(undefined)).toThrow(
+      "Initial value cannot be undefined. Use null for empty values."
+    );
+  });
+
+  it("should allow null as initial value", () => {
+    const nullChunk = chunk<string | null>(null);
+    expect(nullChunk.get()).toBe(null);
+
+    nullChunk.set("value");
+    expect(nullChunk.get()).toBe("value");
+
+    nullChunk.set(null);
+    expect(nullChunk.get()).toBe(null);
+  });
+
+  it("should allow 0, false, and empty string", () => {
+    const zeroChunk = chunk(0);
+    expect(zeroChunk.get()).toBe(0);
+
+    const falseChunk = chunk(false);
+    expect(falseChunk.get()).toBe(false);
+
+    const emptyChunk = chunk("");
+    expect(emptyChunk.get()).toBe("");
   });
 });
