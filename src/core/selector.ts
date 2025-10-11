@@ -18,7 +18,7 @@ export interface SelectOptions {
  * @returns A read-only derived chunk.
  */
 export function select<T, S>(
-  sourceChunk: Chunk<T>,
+  sourceChunk: Chunk<T> | ReadOnlyChunk<T>,
   selector: (value: T) => S,
   options: SelectOptions = {}
 ): ReadOnlyChunk<S> {
