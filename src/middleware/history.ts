@@ -1,3 +1,4 @@
+import { shallowEqual } from "../utils";
 import { Chunk } from "../core/core";
 
 export interface ChunkWithHistory<T> extends Chunk<T> {
@@ -27,87 +28,106 @@ export interface ChunkWithHistory<T> extends Chunk<T> {
   clearHistory: () => void;
 }
 
-export function withHistory<T>(
+export function history<T>(
   baseChunk: Chunk<T>,
-  options: { maxHistory?: number } = {}
+  options: {
+    maxHistory?: number;
+    skipDuplicates?: boolean | "shallow";
+  } = {}
 ): ChunkWithHistory<T> {
-  const { maxHistory = 100 } = options;
-  const history: T[] = [baseChunk.get()];
+  const { maxHistory = 100, skipDuplicates = false } = options;
+  const historyStack: T[] = [baseChunk.get()];
   let currentIndex = 0;
-  let isHistoryAction = false;
 
   const historyChunk: ChunkWithHistory<T> = {
     ...baseChunk,
 
-    set: (newValueOrUpdater: T | ((currentValue: T) => T)) => {
-      if (isHistoryAction) {
-        baseChunk.set(newValueOrUpdater);
-        return;
-      }
+    get: () => baseChunk.get(),
+    peek: () => baseChunk.peek(),
 
-      // Process the value or updater function
+    set: (newValueOrUpdater: T | ((currentValue: T) => T)) => {
+      // Process value
       let newValue: T;
       if (typeof newValueOrUpdater === 'function') {
-        // Get current value and apply the updater function
         const currentValue = baseChunk.get();
         newValue = (newValueOrUpdater as ((currentValue: T) => T))(currentValue);
       } else {
-        // Use directly as the new value
         newValue = newValueOrUpdater;
       }
-      history.splice(currentIndex + 1);
-      history.push(newValue);
 
-      // Limit history size
-      if (history.length > maxHistory) {
-        console.warn("History limit reached. Removing oldest entries.");
-        const removeCount = history.length - maxHistory;
-        history.splice(0, removeCount);
+      if (skipDuplicates) {
+        const currentValue = historyStack[currentIndex];
+
+        if (skipDuplicates === true || skipDuplicates === 'shallow') {
+          // Primitive check
+          if (newValue === currentValue) {
+            return;
+          }
+
+          // Shallow equality for objects
+          if (
+            typeof newValue === 'object' &&
+            typeof currentValue === 'object' &&
+            newValue !== null &&
+            currentValue !== null &&
+            shallowEqual(newValue, currentValue)
+          ) {
+            return;
+          }
+        }
+
+      }
+
+      // Clear forward history
+      historyStack.splice(currentIndex + 1);
+
+      // Add new entry
+      historyStack.push(newValue);
+
+      // Enforce history limit
+      if (historyStack.length > maxHistory) {
+        const removeCount = historyStack.length - maxHistory;
+        historyStack.splice(0, removeCount);
         currentIndex = Math.max(0, currentIndex - removeCount);
       }
 
-      currentIndex = history.length - 1;
+      currentIndex = historyStack.length - 1;
       baseChunk.set(newValue);
     },
 
-    undo: () => {
-      if (!historyChunk.canUndo()) return;
 
-      isHistoryAction = true;
+    undo: () => {
+      if (currentIndex <= 0) return;
+
       currentIndex--;
-      historyChunk.set(history[currentIndex]);
-      isHistoryAction = false;
+      baseChunk.set(historyStack[currentIndex]);
     },
 
     redo: () => {
-      if (!historyChunk.canRedo()) return;
+      if (currentIndex >= historyStack.length - 1) return;
 
-      isHistoryAction = true;
       currentIndex++;
-      historyChunk.set(history[currentIndex]);
-      isHistoryAction = false;
+      baseChunk.set(historyStack[currentIndex]);
     },
 
     canUndo: () => currentIndex > 0,
-
-    canRedo: () => currentIndex < history.length - 1,
-
-    getHistory: () => [...history],
+    canRedo: () => currentIndex < historyStack.length - 1,
+    getHistory: () => [...historyStack],
 
     clearHistory: () => {
       const currentValue = baseChunk.get();
-      history.length = 0;
-      history.push(currentValue);
+      historyStack.length = 0;
+      historyStack.push(currentValue);
       currentIndex = 0;
     },
 
-    // Override destroy to clean up history
     destroy: () => {
-      history.length = 0;
+      historyStack.length = 0;
       baseChunk.destroy();
-    }
-  }
+    },
+
+    subscribe: (callback) => baseChunk.subscribe(callback),
+  };
 
   return historyChunk;
-
 }
