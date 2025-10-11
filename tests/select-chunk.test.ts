@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { chunk } from '../src/core/core';
-import { select } from '../src/core/selector'
+import { select } from '../src/core/selector';
 
 describe('select', () => {
   it('should create a selector that initially returns the correct value', () => {
@@ -25,10 +25,7 @@ describe('select', () => {
     const subscriber = vi.fn();
     nameSelector.subscribe(subscriber);
 
-    // Reset the mock to ignore initial call
-    subscriber.mockReset();
-
-    // Update age only
+    // Update age only (name stays the same)
     source.set({ name: 'John', age: 26 });
 
     expect(subscriber).not.toHaveBeenCalled();
@@ -41,9 +38,6 @@ describe('select', () => {
     const subscriber = vi.fn();
     nameSelector.subscribe(subscriber);
 
-    // Reset the mock to ignore initial call
-    subscriber.mockReset();
-
     source.set({ name: 'Jane', age: 25 });
 
     expect(subscriber).toHaveBeenCalledTimes(1);
@@ -55,8 +49,9 @@ describe('select', () => {
     const nameSelector = select(source, user => user.name);
 
     expect(() => {
+      // @ts-expect-error - Testing that set doesn't exist
       nameSelector.set('Jane');
-    }).toThrow('Cannot set values directly on a selector');
+    }).toThrow();
   });
 
   it('should work with complex selectors', () => {
@@ -98,9 +93,6 @@ describe('select', () => {
     const subscriber = vi.fn();
     const unsubscribe = nameSelector.subscribe(subscriber);
 
-    // Reset mock to ignore initial call
-    subscriber.mockReset();
-
     unsubscribe();
     nameSelector.destroy();
     source.set({ name: 'Jane', age: 25 });
@@ -119,10 +111,6 @@ describe('select', () => {
     nameSelector.subscribe(nameSubscriber);
     ageSelector.subscribe(ageSubscriber);
 
-    // Reset mocks to ignore initial calls
-    nameSubscriber.mockReset();
-    ageSubscriber.mockReset();
-
     source.set({ name: 'John', age: 26 });
     expect(nameSubscriber).not.toHaveBeenCalled();
     expect(ageSubscriber).toHaveBeenCalledWith(26);
@@ -139,25 +127,18 @@ describe('select', () => {
     const callback = vi.fn();
     detailsSelector.subscribe(callback);
 
-    callback.mockReset();
-
     // Setting a new object with the same values
     source.set({ name: "John", details: { age: 25, city: "Lagos" } });
 
     expect(callback).not.toHaveBeenCalled();
   });
 
-  // Test without shallow equality
   it("should update if selected object is new but has same values (without shallow equal)", () => {
     const source = chunk({ name: "John", details: { age: 25, city: "Lagos" } });
-    // Not using shallow equality here
     const detailsSelector = select(source, (user) => user.details);
 
     const callback = vi.fn();
     detailsSelector.subscribe(callback);
-
-    // Reset mock to clear initial call
-    callback.mockReset();
 
     // Setting a new object with the same values
     source.set({ name: "John", details: { age: 25, city: "Lagos" } });
@@ -165,7 +146,6 @@ describe('select', () => {
     expect(callback).toHaveBeenCalledTimes(1);
   });
 
-  // Test nested derivation
   it('should support nested derivation', () => {
     const source = chunk({ user: { profile: { name: 'John' } } });
     const profileSelector = select(source, (data) => data.user.profile);
@@ -190,9 +170,6 @@ describe('select', () => {
     const callback = vi.fn();
     detailsSelector.subscribe(callback);
 
-    // Reset mock to clear initial call
-    callback.mockReset();
-
     // Update with new object but same values
     source.set({
       user: {
@@ -203,16 +180,15 @@ describe('select', () => {
     expect(callback).not.toHaveBeenCalled(); // Should NOT trigger due to shallow equality
   });
 
-  // Test that set and reset throw errors
   it('should throw error when trying to set or reset a selector', () => {
     const source = chunk({ name: 'John' });
     const nameSelector = select(source, (user) => user.name);
 
-    expect(() => nameSelector.set('Alice')).toThrow();
-    expect(() => nameSelector.reset()).toThrow();
+    // set and reset should not exist
+    expect(nameSelector.set).toBeUndefined();
+    expect(nameSelector.reset).toBeUndefined();
   });
 
-  // Test cleanup
   it('should unsubscribe from source when destroyed', () => {
     const source = chunk({ name: 'John' });
     const nameSelector = select(source, (user) => user.name);
@@ -220,13 +196,110 @@ describe('select', () => {
     const callback = vi.fn();
     nameSelector.subscribe(callback);
 
-    // Reset mock to clear initial call
-    callback.mockReset();
-
     nameSelector.destroy();
     source.set({ name: 'Alice' });
 
     expect(callback).not.toHaveBeenCalled();
   });
 
+  // ✅ NEW TEST: peek() should work on selectors
+  it('should support peek() for non-reactive reads', () => {
+    const source = chunk({ name: 'John', age: 25 });
+    const nameSelector = select(source, user => user.name);
+
+    expect(nameSelector.peek()).toBe('John');
+
+    source.set({ name: 'Jane', age: 25 });
+    expect(nameSelector.peek()).toBe('Jane');
+  });
+
+  // ✅ NEW TEST: Selector should update on source changes even without subscribers
+  it('should update selector value even without subscribers', () => {
+    const source = chunk({ count: 0 });
+    const doubleSelector = select(source, state => state.count * 2);
+
+    expect(doubleSelector.get()).toBe(0);
+
+    source.set({ count: 5 });
+    expect(doubleSelector.get()).toBe(10);
+
+    source.set({ count: 10 });
+    expect(doubleSelector.get()).toBe(20);
+  });
+
+  // ✅ NEW TEST: Primitive values with shallow equal
+  it('should handle primitives with shallow equal option', () => {
+    const source = chunk({ value: 5 });
+    const valueSelector = select(source, state => state.value, { useShallowEqual: true });
+
+    const callback = vi.fn();
+    valueSelector.subscribe(callback);
+
+    // Same value
+    source.set({ value: 5 });
+    expect(callback).not.toHaveBeenCalled();
+
+    // Different value
+    source.set({ value: 10 });
+    expect(callback).toHaveBeenCalledWith(10);
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  // ✅ NEW TEST: Selector with null values
+  it('should handle null values in selectors', () => {
+    const source = chunk<{ user: string | null }>({ user: 'John' });
+    const userSelector = select(source, state => state.user);
+
+    expect(userSelector.get()).toBe('John');
+
+    source.set({ user: null });
+    expect(userSelector.get()).toBeNull();
+
+    source.set({ user: 'Jane' });
+    expect(userSelector.get()).toBe('Jane');
+  });
+
+  // ✅ NEW TEST: Selector with array transformations
+  it('should handle array transformations', () => {
+    const source = chunk({ items: [1, 2, 3, 4, 5] });
+    const evenSelector = select(source, state => state.items.filter(n => n % 2 === 0));
+
+    expect(evenSelector.get()).toEqual([2, 4]);
+
+    source.set({ items: [1, 2, 3, 4, 5, 6] });
+    expect(evenSelector.get()).toEqual([2, 4, 6]);
+  });
+
+  // ✅ NEW TEST: Multiple levels of selection
+  it('should support multiple levels of selection chaining', () => {
+    const source = chunk({
+      app: {
+        user: {
+          profile: {
+            name: 'John',
+            email: 'john@example.com'
+          }
+        }
+      }
+    });
+
+    const userSelector = select(source, state => state.app.user);
+    const profileSelector = select(userSelector, user => user.profile);
+    const nameSelector = select(profileSelector, profile => profile.name);
+
+    expect(nameSelector.get()).toBe('John');
+
+    source.set({
+      app: {
+        user: {
+          profile: {
+            name: 'Jane',
+            email: 'jane@example.com'
+          }
+        }
+      }
+    });
+
+    expect(nameSelector.get()).toBe('Jane');
+  });
 });
