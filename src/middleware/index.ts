@@ -3,5 +3,5 @@ export { logger } from "./logger";
 export { nonNegativeValidator } from "./validator";
 
 // Middleware used with chunks
-export { withHistory } from "./history";
-export { withPersistence } from './persistence';
+export { history } from "./history";
+export { persist } from './persistence';
