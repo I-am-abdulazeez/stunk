@@ -36,6 +36,7 @@ export function isChunk<T>(value: unknown): value is Chunk<T> {
     'set',
     'subscribe',
     'derive',
+    'peek',
     'reset',
     'destroy'
   ] as const;
@@ -45,6 +46,11 @@ export function isChunk<T>(value: unknown): value is Chunk<T> {
   );
 }
 
+/**
+ * Only executes the function once ever.
+ * Returns the cached result on subsequent calls.
+ * Use case: Expensive initialization, singleton patterns
+ */
 export function once<T>(fn: () => T): () => T {
   let called = false;
   let result: T;
@@ -118,9 +124,13 @@ export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   return combined;
 }
 
-export function processMiddleware<T>(initialValue: T, middleware: (Middleware<T> | NamedMiddleware<T>)[]): T {
-  if (initialValue === null) {
-    throw new Error("Value cannot be null.");
+export function processMiddleware<T>(
+  initialValue: T,
+  middleware: (Middleware<T> | NamedMiddleware<T>)[]
+): T {
+
+  if (initialValue === undefined) {
+    throw new Error("Value cannot be undefined.");
   }
 
   let currentValue = initialValue;
@@ -130,24 +140,36 @@ export function processMiddleware<T>(initialValue: T, middleware: (Middleware<T>
     const current = middleware[index];
 
     const middlewareFn = typeof current === 'function' ? current : current.fn;
-    const middlewareName = typeof current === 'function' ? `index ${index}` : (current.name || `index ${index}`);
+    const middlewareName = typeof current === 'function'
+      ? `middleware at index ${index}`
+      : (current.name || `middleware at index ${index}`);
+
     let nextCalled = false;
-    let nextValue: T | null = null;
+    let nextValue: T | undefined = undefined;
 
     try {
-      middlewareFn(currentValue, (val) => {
+      middlewareFn(currentValue, (val: T) => {
+        if (nextCalled) {
+          throw new Error(`next() was called multiple times in "${middlewareName}"`);
+        }
         nextCalled = true;
         nextValue = val;
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`Middleware "${middlewareName}" threw an error: ${errorMessage}`);
+      throw new Error(`Middleware "${middlewareName}" failed: ${errorMessage}`);
     }
 
-    if (!nextCalled) break;
+    // If next() wasn't called, stop the chain
+    if (!nextCalled) {
+      break;
+    }
 
-    if (nextValue === null) {
-      throw new Error(`Middleware at index ${index} returned null value.`);
+    // Undefined means next() was called without a value
+    if (nextValue === undefined) {
+      throw new Error(
+        `Middleware "${middlewareName}" called next() without providing a value.`
+      );
     }
 
     currentValue = nextValue;
@@ -198,30 +220,107 @@ export function shallowEqual<T>(a: T, b: T): boolean {
   return false;
 }
 
-export function validateObjectShape<T>(original: T, updated: T, path = '') {
-  if (typeof original === 'object' && original !== null && typeof updated === 'object' && updated !== null) {
-    if (Array.isArray(original) && Array.isArray(updated)) {
-      if (original.length > 0 && typeof original[0] === 'object') {
-        for (let i = 0; i < updated.length; i++) {
-          validateObjectShape(original[0], updated[i], `${path}[${i}]`);
-        }
-      }
-    } else if (!Array.isArray(original) && !Array.isArray(updated)) {
-      const originalKeys = Object.keys(original as object);
-      const updatedKeys = Object.keys(updated as object);
-      const extraKeys = updatedKeys.filter(key => !originalKeys.includes(key));
+export function validateObjectShape<T>(
+  original: T,
+  updated: T,
+  path = '',
+  options: { checkMissing?: boolean; checkTypes?: boolean } = {}
+) {
+  const { checkMissing = true, checkTypes = true } = options;
 
-      if (extraKeys.length > 0) {
-        const fullPath = path || 'root';
-        console.error(`🚨 Stunk: Unknown properties detected at '${fullPath}': ${extraKeys.join(', ')}. This might cause bugs.`);
-        console.error('Expected keys:', originalKeys);
-        console.error('Received keys:', updatedKeys);
-      }
+  if (original === null || updated === null) {
+    return;
+  }
 
-      // Recurse into common keys
-      for (const key of originalKeys) {
-        validateObjectShape((original as any)[key], (updated as any)[key], path ? `${path}.${key}` : key);
+  // Both must be objects or both primitives
+  if (typeof original !== typeof updated) {
+    const fullPath = path || 'root';
+    console.error(
+      `🚨 Stunk: Type mismatch at '${fullPath}'. ` +
+      `Expected ${typeof original}, got ${typeof updated}.`
+    );
+    return;
+  }
+
+  // Only validate if both are objects
+  if (typeof original !== 'object' || typeof updated !== 'object') {
+    return;
+  }
+
+  // Handle array vs object mismatch
+  if (Array.isArray(original) !== Array.isArray(updated)) {
+    const fullPath = path || 'root';
+    console.error(
+      `🚨 Stunk: Type mismatch at '${fullPath}'. ` +
+      `Expected ${Array.isArray(original) ? 'array' : 'object'}, ` +
+      `got ${Array.isArray(updated) ? 'array' : 'object'}.`
+    );
+    return;
+  }
+
+  // Validate arrays
+  if (Array.isArray(original) && Array.isArray(updated)) {
+    // Only validate if original has items and they're objects
+    if (original.length > 0 && typeof original[0] === 'object') {
+      for (let i = 0; i < updated.length; i++) {
+        validateObjectShape(
+          original[0],
+          updated[i],
+          `${path}[${i}]`,
+          options
+        );
       }
     }
+    return;
+  }
+
+  // Validate objects
+  const originalKeys = Object.keys(original as object);
+  const updatedKeys = Object.keys(updated as object);
+
+  // Check for extra keys
+  const extraKeys = updatedKeys.filter(key => !originalKeys.includes(key));
+  if (extraKeys.length > 0) {
+    const fullPath = path || 'root';
+    console.error(
+      `🚨 Stunk: Unknown properties at '${fullPath}': ${extraKeys.join(', ')}`
+    );
+    console.error('Expected keys:', originalKeys);
+    console.error('Received keys:', updatedKeys);
+  }
+
+  // Check for missing keys
+  if (checkMissing) {
+    const missingKeys = originalKeys.filter(key => !updatedKeys.includes(key));
+    if (missingKeys.length > 0) {
+      const fullPath = path || 'root';
+      console.error(
+        `🚨 Stunk: Missing properties at '${fullPath}': ${missingKeys.join(', ')}`
+      );
+    }
+  }
+
+  // Recurse into common keys
+  for (const key of originalKeys) {
+    const originalValue = (original as any)[key];
+    const updatedValue = (updated as any)[key];
+
+    // Check primitive type changes
+    if (checkTypes &&
+      typeof originalValue !== 'object' &&
+      typeof originalValue !== typeof updatedValue) {
+      console.error(
+        `🚨 Stunk: Type mismatch at '${path ? path + '.' : ''}${key}'. ` +
+        `Expected ${typeof originalValue}, got ${typeof updatedValue}.`
+      );
+    }
+
+    // Recurse for nested objects
+    validateObjectShape(
+      originalValue,
+      updatedValue,
+      path ? `${path}.${key}` : key,
+      options
+    );
   }
 }
