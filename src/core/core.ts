@@ -97,8 +97,10 @@ export function batch(callback: () => void) {
 // ============================================================================
 
 export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMiddleware<T>)[] = []): Chunk<T> {
-  if (initialValue === null) {
-    throw new Error("Initial value cannot be null.");
+  if (initialValue === undefined) {
+    throw new Error(
+      "Initial value cannot be undefined. Use null for empty values."
+    );
   }
 
   let value = initialValue;
