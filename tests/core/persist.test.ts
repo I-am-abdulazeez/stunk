@@ -1,6 +1,6 @@
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { chunk } from '../../src/core/core';
-import { persist } from "../../src/middleware/persistence";
+import { persist } from "../../src/middleware/persist";
 
 describe('persist', () => {
   beforeEach(() => {
