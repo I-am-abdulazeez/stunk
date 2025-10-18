@@ -6,6 +6,10 @@ export type NamedMiddleware<T> = {
   name?: string;
   fn: Middleware<T>;
 };
+export interface ChunkConfig<T> {
+  name?: string;
+  middleware?: (Middleware<T> | NamedMiddleware<T>)[];
+}
 
 export interface Chunk<T> {
   /** Get the current value of the chunk. */
@@ -17,16 +21,13 @@ export interface Chunk<T> {
   /** Subscribe to changes in the chunk. Returns an unsubscribe function. */
   subscribe: (callback: Subscriber<T>) => () => void;
   /** Create a derived chunk based on this chunk's value. */
-  derive: <D>(fn: (value: T) => D) => Chunk<D>;
+  derive: <D>(fn: (value: T) => D) => ReadOnlyChunk<D>;
   /** Reset the chunk to its initial value. */
   reset: () => void;
   /** Destroy the chunk and all its subscribers. */
   destroy: () => void;
 }
-export interface ReadOnlyChunk<T> extends Omit<Chunk<T>, 'set' | 'reset' | 'derive'> {
-  set?: never;
-  reset?: never;
-  /** Create a derived chunk based on this chunk's value. */
+export interface ReadOnlyChunk<T> extends Omit<Chunk<T>, 'set' | 'reset'> {
   derive: <D>(fn: (value: T) => D) => ReadOnlyChunk<D>;
 }
 
@@ -96,16 +97,21 @@ export function batch(callback: () => void) {
 // CHUNK IMPLEMENTATION
 // ============================================================================
 
-export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMiddleware<T>)[] = []): Chunk<T> {
+export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T> {
+  const chunkId = chunkIdCounter++;
+  const chunkName = __DEV__
+    ? (config.name || `chunk_${chunkId}`)
+    : `chunk_${chunkId}`;
+  const middleware = config.middleware || [];
+
   if (initialValue === undefined) {
     throw new Error(
-      "Initial value cannot be undefined. Use null for empty values."
+      `[${chunkName}] Initial value cannot be undefined.`
     );
   }
 
   let value = initialValue;
   const subscribers = new Set<Subscriber<T>>();
-  const chunkId = chunkIdCounter++;
 
   const notify = () => {
     subscribers.forEach(subscriber => subscriber(value));
@@ -114,7 +120,10 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
   chunkRegistry.set(chunkId, { notify });
 
   const notifySubscribers = () => {
-    if (subscribers.size === 0) return; // Skip if no subscribers
+    if (subscribers.size === 0) {
+      chunkRegistry.delete(chunkId); // Skip and auto-cleanup if no subscribers
+      return;
+    }
     if (isBatching) {
       dirtyChunks.add(chunkId);
     } else {
@@ -123,7 +132,6 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
   };
 
   const get = () => {
-    // Track this chunk access for computed dependency tracking
     trackChunkAccess(chunkInstance);
     return value;
   };
@@ -142,7 +150,9 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
       newValue = newValueOrUpdater;
     }
 
-    validateObjectShape(value, newValue);
+    if (__DEV__) {
+      validateObjectShape(value, newValue);
+    }
 
     const processedValue = processMiddleware(newValue, middleware);
 
@@ -172,7 +182,7 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
     chunkRegistry.delete(chunkId);
   };
 
-  const derive = <D>(fn: (value: T) => D) => {
+  const derive = <D>(fn: (value: T) => D): ReadOnlyChunk<D> => {
     if (typeof fn !== "function") {
       throw new Error("Derive function must be a function.");
     }
@@ -185,7 +195,6 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
       derivedChunk.set(newDerivedValue);
     });
 
-    // Add a cleanup method to the derived chunk
     const originalDestroy = derivedChunk.destroy;
     derivedChunk.destroy = () => {
       unsubscribe();
@@ -195,7 +204,10 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
     return derivedChunk;
   };
 
-  const chunkInstance: Chunk<T> = { get, peek, set, subscribe, derive, reset, destroy };
+  const chunkInstance: Chunk<T> = {
+    get, peek, set, subscribe, derive, reset, destroy,
+    ...__DEV__ && { [Symbol.for('stunk.meta')]: { name: chunkName, id: chunkId } }
+  };
 
   return chunkInstance;
 }
