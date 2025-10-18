@@ -4,4 +4,4 @@ export { nonNegativeValidator } from "./validator";
 
 // Middleware used with chunks
 export { history } from "./history";
-export { persist } from './persistence';
+export { persist } from './persist';
