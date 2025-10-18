@@ -1,7 +1,4 @@
-import { chunk, Chunk, Middleware, NamedMiddleware } from "./core/core";
-
-import { AsyncChunk } from "./core/async-chunk";
-import { CombinedData, CombinedState } from "./core/types";
+import { Chunk, Middleware, NamedMiddleware } from "./core/core";
 
 export function isValidChunkValue(value: unknown): boolean {
   return value !== null;
@@ -44,84 +41,6 @@ export function isChunk<T>(value: unknown): value is Chunk<T> {
   return requiredMethods.every(method =>
     typeof chunk[method] === 'function'
   );
-}
-
-/**
- * Only executes the function once ever.
- * Returns the cached result on subsequent calls.
- * Use case: Expensive initialization, singleton patterns
- */
-export function once<T>(fn: () => T): () => T {
-  let called = false;
-  let result: T;
-  return () => {
-    if (!called) {
-      result = fn();
-      called = true;
-    }
-    return result;
-  };
-};
-
-/**
- * Combines multiple async chunks into a single chunk.
- * The combined chunk tracks loading, error, and data states from all source chunks.
- */
-export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
-  chunks: T
-): Chunk<CombinedState<T>> {
-  const initialData = Object.keys(chunks).reduce((acc, key) => {
-    acc[key as keyof T] = null;
-    return acc;
-  }, {} as CombinedData<T>);
-
-  const initialState: CombinedState<T> = {
-    loading: Object.keys(chunks).length > 0,
-    error: null,
-    errors: {},
-    data: initialData
-  };
-
-  const combined = chunk(initialState);
-
-  // Subscribe to each async chunk
-  Object.entries(chunks).forEach(([key, asyncChunk]) => {
-    asyncChunk.subscribe((state) => {
-      const currentState = combined.get();
-
-      // Recalculate loading and error states from all chunks
-      let hasLoading = false;
-      let firstError: Error | null = null;
-      const allErrors: Partial<{ [K in keyof T]: Error }> = {};
-
-      Object.entries(chunks).forEach(([chunkKey, chunk]) => {
-        const chunkState = chunk.get();
-
-        // Check loading state
-        if (chunkState.loading) {
-          hasLoading = true;
-        }
-        // Collect errors
-        if (chunkState.error) {
-          if (!firstError) firstError = chunkState.error;
-          allErrors[chunkKey as keyof T] = chunkState.error;
-        }
-      });
-
-      // Update combined state
-      combined.set({
-        loading: hasLoading,
-        error: firstError,
-        errors: allErrors,
-        data: {
-          ...currentState.data,
-          [key]: state.data
-        },
-      });
-    });
-  });
-
-  return combined;
 }
 
 export function processMiddleware<T>(
