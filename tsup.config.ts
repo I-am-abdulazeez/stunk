@@ -12,6 +12,9 @@ export default defineConfig([
     treeshake: true,
     splitting: false,
     target: 'es2020',
+    define: {
+      __DEV__: 'false', // Production build
+    },
   },
   // Framework-specific entries
   {
@@ -28,5 +31,8 @@ export default defineConfig([
     treeshake: true,
     target: 'es2020',
     external: ['react', 'vue'], // Don't bundle peer dependencies
+    define: {
+      __DEV__: 'true',
+    },
   }
 ])
