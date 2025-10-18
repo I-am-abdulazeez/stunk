@@ -1,4 +1,4 @@
-import { Chunk, chunk, trackDependencies, ReadOnlyChunk } from "./core";
+import { chunk, trackDependencies, ReadOnlyChunk } from "./core";
 import { shallowEqual } from "../utils";
 
 export interface Computed<T> extends ReadOnlyChunk<T> {
@@ -19,75 +19,84 @@ export function computed<T>(computeFn: () => T): Computed<T> {
   let dependencies = initialDeps;
   let isDirty = false;
   let unsubs: Array<() => void> = [];
-  let isRecomputing = false; // ← FLAG TO PREVENT RE-ENTRANCY
+  let subscriberCount = 0;
 
   const computedChunk = chunk(cachedValue);
-  const originalSet = computedChunk.set;
 
-  const recompute = () => {
-    if (isRecomputing) {
-      return; // Already recomputing, skip
+  const _recompute = () => {
+    if (!isDirty) return;
+    isDirty = false;
+
+    const [newValue, newDeps] = trackDependencies(computeFn);
+
+    // Check if dependencies have changed
+    if (!shallowEqual(newDeps, dependencies)) {
+      unsubs.forEach(unsub => unsub());
+
+      // Subscribe to new dependencies
+      unsubs = newDeps.map(dep =>
+        dep.subscribe(() => {
+          isDirty = true;
+
+          // Recompute eagerly only if we have subscribers
+          if (subscriberCount > 0) {
+            _recompute();
+          }
+        })
+      );
+      dependencies = newDeps;
     }
 
-    isRecomputing = true; // ← SET FLAG
+    const shouldUpdate =
+      typeof newValue === 'object' && typeof cachedValue === 'object'
+        ? !shallowEqual(newValue, cachedValue)
+        : newValue !== cachedValue;
 
-    try {
-      // Re-track dependencies on every computation
-      const [newValue, newDeps] = trackDependencies(computeFn);
-
-      // Update subscriptions if dependencies changed
-      if (!shallowEqual(newDeps, dependencies)) {
-        unsubs.forEach(unsub => unsub());
-        unsubs = newDeps.map(dep =>
-          dep.subscribe(() => {
-            isDirty = true;
-            recompute();
-          })
-        );
-        dependencies = newDeps;
-      }
-
-      // Check if value changed
-      const shouldUpdate =
-        typeof newValue === 'object' && typeof cachedValue === 'object'
-          ? !shallowEqual(newValue, cachedValue)
-          : newValue !== cachedValue;
-
-      if (shouldUpdate) {
-        cachedValue = newValue;
-        originalSet(newValue);
-      }
-
-      isDirty = false;
-    } finally {
-      isRecomputing = false; // ← ALWAYS RESET FLAG
+    if (shouldUpdate) {
+      cachedValue = newValue;
+      computedChunk.set(newValue);
     }
   };
 
-  // Initial subscriptions
+  // Initial subscriptions to dependencies
   unsubs = dependencies.map(dep =>
     dep.subscribe(() => {
       isDirty = true;
-      recompute();
+
+      // Recompute eagerly if we have subscribers
+      if (subscriberCount > 0) {
+        _recompute();
+      }
     })
   );
 
-  const { set: _omitSet, reset: _omitReset, derive: _derive, ...chunkWithoutSetReset } = computedChunk;
-
   return {
-    ...chunkWithoutSetReset,
     get: () => {
-      if (isDirty) recompute();
-      return cachedValue;
+      if (isDirty) _recompute();
+      return computedChunk.get();
     },
-    derive: <D>(fn: (value: T) => D): ReadOnlyChunk<D> => {
-      return computed(() => fn(cachedValue));
+    peek: () => cachedValue,
+    subscribe: (callback) => {
+      const unsubscribe = computedChunk.subscribe(callback);
+      subscriberCount++; // Only increment if successful
+
+      return () => {
+        subscriberCount--; //  Decrement first
+        unsubscribe();
+      };
     },
-    recompute,
+    derive: <D>(fn: (value: T) => D) => {
+      return computed(() => fn(computedChunk.get()));
+    },
+    recompute: () => {
+      isDirty = true;
+      _recompute();
+    },
     isDirty: () => isDirty,
     destroy: () => {
       unsubs.forEach(unsub => unsub());
-      computedChunk.destroy?.();
-    }
+      computedChunk.destroy();
+      subscriberCount = 0;
+    },
   };
 }
