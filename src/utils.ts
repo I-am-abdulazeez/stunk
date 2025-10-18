@@ -1,5 +1,10 @@
 import { Chunk, Middleware, NamedMiddleware } from "./core/core";
 
+export interface ChunkMeta {
+  name: string;
+  id: number;
+}
+
 export function isValidChunkValue(value: unknown): boolean {
   return value !== null;
 }
@@ -242,4 +247,8 @@ export function validateObjectShape<T>(
       options
     );
   }
+}
+
+export function getChunkMeta<T>(chunk: Chunk<T>): ChunkMeta | undefined {
+  return (chunk as any)[Symbol.for('stunk.meta')];
 }
