@@ -1,4 +1,4 @@
-import { AsyncChunk } from "./async-chunk";
+import { AsyncChunk } from "../query";
 
 export type AsyncChunkOpt<T, E extends Error> = {
   initialData?: T | null;
