@@ -20,7 +20,7 @@ export default defineConfig([
       'use-react/index': 'src/use-react/index.ts',
       // 'use-vue/index': 'src/use-vue/index.ts',
     },
-    format: ['esm'],
+    format: ['esm', 'cjs'],
     dts: true,
     minify: true,
     sourcemap: false,
