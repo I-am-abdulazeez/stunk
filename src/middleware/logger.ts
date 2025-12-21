@@ -1,6 +1,6 @@
 import { Middleware } from "../core/core";
 
-export const logger: Middleware<any> = (value, next) => {
+export const logger: Middleware<any> = (value) => {
   console.log("Setting value:", value);
-  next(value);
+  return value;
 };
