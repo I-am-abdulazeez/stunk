@@ -1,7 +1,7 @@
 import { processMiddleware, validateObjectShape } from "../utils";
 
 export type Subscriber<T> = (newValue: T) => void;
-export type Middleware<T> = (value: T, next: (newValue: T) => void) => void;
+export type Middleware<T> = (value: T) => T | undefined;
 export type NamedMiddleware<T> = {
   name?: string;
   fn: Middleware<T>;

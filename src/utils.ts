@@ -118,40 +118,40 @@ export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   return combined;
 }
 
-export function processMiddleware<T>(initialValue: T, middleware: (Middleware<T> | NamedMiddleware<T>)[]): T {
+export function processMiddleware<T>(
+  initialValue: T,
+  middleware: (Middleware<T> | NamedMiddleware<T>)[]
+): T {
   if (initialValue === null) {
     throw new Error("Value cannot be null.");
   }
 
   let currentValue = initialValue;
-  let index = 0;
 
-  while (index < middleware.length) {
-    const current = middleware[index];
+  for (let i = 0; i < middleware.length; i++) {
+    const current = middleware[i];
 
     const middlewareFn = typeof current === 'function' ? current : current.fn;
-    const middlewareName = typeof current === 'function' ? `index ${index}` : (current.name || `index ${index}`);
-    let nextCalled = false;
-    let nextValue: T | null = null;
+    const middlewareName = typeof current === 'function'
+      ? `index ${i}`
+      : (current.name || `index ${i}`);
 
     try {
-      middlewareFn(currentValue, (val) => {
-        nextCalled = true;
-        nextValue = val;
-      });
+      const result = middlewareFn(currentValue);
+
+      // If undefined is returned, stop processing the middleware chain
+      if (result === undefined) break;
+
+      // Null values are not allowed
+      if (result === null) {
+        throw new Error(`Middleware "${middlewareName}" returned null value.`);
+      }
+
+      currentValue = result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Middleware "${middlewareName}" threw an error: ${errorMessage}`);
     }
-
-    if (!nextCalled) break;
-
-    if (nextValue === null) {
-      throw new Error(`Middleware at index ${index} returned null value.`);
-    }
-
-    currentValue = nextValue;
-    index++;
   }
 
   return currentValue;
