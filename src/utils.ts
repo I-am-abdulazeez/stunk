@@ -52,56 +52,41 @@ export function processMiddleware<T>(
   initialValue: T,
   middleware: (Middleware<T> | NamedMiddleware<T>)[]
 ): T {
-
-  if (initialValue === undefined) {
-    throw new Error("Value cannot be undefined.");
+  if (initialValue === null) {
+    throw new Error("Value cannot be null.");
   }
 
   let currentValue = initialValue;
-  let index = 0;
 
-  while (index < middleware.length) {
-    const current = middleware[index];
+  for (let i = 0; i < middleware.length; i++) {
+    const current = middleware[i];
 
     const middlewareFn = typeof current === 'function' ? current : current.fn;
     const middlewareName = typeof current === 'function'
-      ? `middleware at index ${index}`
-      : (current.name || `middleware at index ${index}`);
-
-    let nextCalled = false;
-    let nextValue: T | undefined = undefined;
+      ? `index ${i}`
+      : (current.name || `index ${i}`);
 
     try {
-      middlewareFn(currentValue, (val: T) => {
-        if (nextCalled) {
-          throw new Error(`next() was called multiple times in "${middlewareName}"`);
-        }
-        nextCalled = true;
-        nextValue = val;
-      });
+      const result = middlewareFn(currentValue);
+
+      // If undefined is returned, stop processing the middleware chain
+      if (result === undefined) break;
+
+      // Null values are not allowed
+      if (result === null) {
+        throw new Error(`Middleware "${middlewareName}" returned null value.`);
+      }
+
+      currentValue = result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`Middleware "${middlewareName}" failed: ${errorMessage}`);
+      throw new Error(`Middleware "${middlewareName}" threw an error: ${errorMessage}`);
     }
-
-    // If next() wasn't called, stop the chain
-    if (!nextCalled) {
-      break;
-    }
-
-    // Undefined means next() was called without a value
-    if (nextValue === undefined) {
-      throw new Error(
-        `Middleware "${middlewareName}" called next() without providing a value.`
-      );
-    }
-
-    currentValue = nextValue;
-    index++;
   }
 
   return currentValue;
 }
+
 
 export function shallowEqual<T>(a: T, b: T): boolean {
   if (a === b) {
