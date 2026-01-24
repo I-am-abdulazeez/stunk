@@ -38,10 +38,10 @@ Read Docs:
 import { chunk } from "stunk";
 
 // Create a chunk holding a number
-const count = chunk(0);
+const count = chunk<number>(0);
 
 // Create a chunk holding a string
-const name = chunk("Stunky, chunky");
+const name = chunk<string>("Stunky, chunky");
 ```
 
 👉 [See full explanation in docs](https://stunk.vercel.app/chunk.html)
@@ -56,7 +56,7 @@ console.log(count.get()); // 0
 count.set(10);
 
 // Update based on the previous value
-count.set((prev) => prev + 1);
+count.set((prev: number) => prev + 1);
 
 // Reset to the initial value
 count.reset();
@@ -75,7 +75,7 @@ The `useChunk` hook, enables components to reactively read and update state from
 import { chunk } from "stunk";
 import { useChunk } from "stunk/react";
 
-const count = chunk(0);
+const count = chunk<number>(0);
 
 const Counter = () => {
   const [value, set, reset] = useChunk(count);
@@ -83,7 +83,7 @@ const Counter = () => {
   return (
     <div>
       <p>Count: {value}</p>
-      <button onClick={() => set((prev) => prev + 1)}>Increment</button>
+      <button onClick={() => set((prev: number) => prev + 1)}>Increment</button>
       <button onClick={() => reset()}>Reset</button>
     </div>
   );
@@ -100,10 +100,10 @@ Hook that lets you create a read-only derived state from a Chunk. It keeps the d
 import { chunk } from "stunk";
 import { useDerive } from "stunk/react";
 
-const count = chunk(0);
+const count = chunk<number>(0);
 
 const DoubledCount = () => {
-  const double = useDerive(count, (value) => value * 2);
+  const double = useDerive(count, (value: number) => value * 2);
 
   return <p>Double: {double}</p>;
 };
@@ -119,11 +119,14 @@ Hook that derives a computed value from one or more Chunks. It automatically re-
 import { chunk } from "stunk";
 import { useComputed } from "stunk/react";
 
-const count = chunk(2);
-const multiplier = chunk(3);
+const count = chunk<number>(2);
+const multiplier = chunk<number>(3);
 
 const ComputedExample = () => {
-  const product = useComputed([count, multiplier], (c, m) => c * m);
+  const product = useComputed(
+    [count, multiplier],
+    (c: number, m: number) => c * m
+  );
 
   return <p>Product: {product}</p>;
 };
@@ -139,7 +142,12 @@ Hook that manages that manages asynchronous state. It offers built-in reactivity
 import { asyncChunk } from "stunk";
 import { useAsyncChunk } from "stunk/react";
 
-const fetchUser = asyncChunk(async () => {
+interface User {
+  name: string;
+  email: string;
+}
+
+const fetchUser = asyncChunk<User>(async () => {
   const res = await fetch("https://jsonplaceholder.typicode.com/users/1");
   return res.json();
 });
@@ -152,8 +160,8 @@ const UserProfile = () => {
 
   return (
     <div>
-      <h2>{data.name}</h2>
-      <p>{data.email}</p>
+      <h2>{data?.name}</h2>
+      <p>{data?.email}</p>
       <button onClick={reload}>Reload</button>
     </div>
   );
@@ -170,7 +178,7 @@ Hook that subscribes to a Chunk and returns its current value. It is useful for 
 import { chunk } from "stunk";
 import { useChunkValue } from "stunk/react";
 
-const count = chunk(0);
+const count = chunk<number>(0);
 
 const CounterDisplay = () => {
   const value = useChunkValue(count);
