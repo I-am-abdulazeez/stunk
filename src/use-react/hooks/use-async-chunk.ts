@@ -106,7 +106,7 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     } else if (fetchOnMount && !initialParams) {
       asyncChunk.reload();
     }
-  }, [asyncChunk]); // Only run once on mount
+  }, [asyncChunk, initialParams, fetchOnMount]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -137,6 +137,34 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     }
   }, [asyncChunk]);
 
+  const nextPage = useCallback(() => {
+    if (isPaginatedChunk(asyncChunk)) {
+      return asyncChunk.nextPage();
+    }
+    return Promise.resolve();
+  }, [asyncChunk]);
+
+  const prevPage = useCallback(() => {
+    if (isPaginatedChunk(asyncChunk)) {
+      return asyncChunk.prevPage();
+    }
+    return Promise.resolve();
+  }, [asyncChunk]);
+
+  const goToPage = useCallback((page: number) => {
+    if (isPaginatedChunk(asyncChunk)) {
+      return asyncChunk.goToPage(page);
+    }
+    return Promise.resolve();
+  }, [asyncChunk]);
+
+  const resetPagination = useCallback(() => {
+    if (isPaginatedChunk(asyncChunk)) {
+      return asyncChunk.resetPagination();
+    }
+    return Promise.resolve();
+  }, [asyncChunk]);
+
   const { data, loading, error, lastFetched, pagination } = state;
 
   const result: UseAsyncChunkResult<T, E, P> = {
@@ -159,10 +187,10 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
   if (isPaginatedChunk(asyncChunk)) {
     const paginatedResult = result as UseAsyncChunkResultWithPagination<T, E, P>;
     paginatedResult.pagination = pagination;
-    paginatedResult.nextPage = useCallback(() => asyncChunk.nextPage(), [asyncChunk]);
-    paginatedResult.prevPage = useCallback(() => asyncChunk.prevPage(), [asyncChunk]);
-    paginatedResult.goToPage = useCallback((page: number) => asyncChunk.goToPage(page), [asyncChunk]);
-    paginatedResult.resetPagination = useCallback(() => asyncChunk.resetPagination(), [asyncChunk]);
+    paginatedResult.nextPage = nextPage;
+    paginatedResult.prevPage = prevPage;
+    paginatedResult.goToPage = goToPage;
+    paginatedResult.resetPagination = resetPagination;
   }
 
   return result;
