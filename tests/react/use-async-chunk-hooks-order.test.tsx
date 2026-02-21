@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, waitFor } from '@testing-library/react';
 
 import { asyncChunk, AsyncChunk, PaginatedAsyncChunk } from '../../src/core/async-chunk';
 import { useAsyncChunk } from '../../src/use-react/hooks/use-async-chunk';
@@ -62,5 +62,59 @@ describe('useAsyncChunk hook order stability', () => {
     }).not.toThrow();
 
     expect(getByTestId('state').textContent).toContain(':false');
+  });
+
+  it('applies init-only options once for the same chunk instance', async () => {
+    const fetcher = vi.fn(async (params: { query: string }) => params.query);
+    const sharedChunk = asyncChunk(fetcher);
+
+    function InitOnlyHarness({ params }: { params: { query: string } }) {
+      useAsyncChunk(sharedChunk, { initialParams: params });
+      return null;
+    }
+
+    const { rerender } = render(<InitOnlyHarness params={{ query: 'books' }} />);
+
+    await waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(<InitOnlyHarness params={{ query: 'books' }} />);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-applies init options when chunk identity changes', async () => {
+    const fetcherA = vi.fn(async (params: { query: string }) => params.query);
+    const fetcherB = vi.fn(async (params: { query: string }) => params.query);
+
+    const chunkA = asyncChunk(fetcherA);
+    const chunkB = asyncChunk(fetcherB);
+
+    function ChunkSwitchHarness({
+      source,
+      params,
+    }: {
+      source: AsyncChunk<string, Error>;
+      params: { query: string };
+    }) {
+      useAsyncChunk(source, { initialParams: params });
+      return null;
+    }
+
+    const { rerender } = render(
+      <ChunkSwitchHarness source={chunkA} params={{ query: 'alpha' }} />
+    );
+
+    await waitFor(() => {
+      expect(fetcherA).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(<ChunkSwitchHarness source={chunkB} params={{ query: 'beta' }} />);
+
+    await waitFor(() => {
+      expect(fetcherB).toHaveBeenCalledTimes(1);
+    });
   });
 });

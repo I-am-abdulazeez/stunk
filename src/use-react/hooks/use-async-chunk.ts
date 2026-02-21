@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { AsyncChunk, AsyncStateWithPagination, PaginatedAsyncChunk, PaginationState } from "../../core/async-chunk";
 
 // Type guard to check if chunk has pagination methods
@@ -89,6 +89,19 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     : { initialParams: options as Partial<P> | undefined, fetchOnMount: false };
 
   const [state, setState] = useState<AsyncStateWithPagination<T, E>>(() => asyncChunk.get());
+  const initConfigRef = useRef<{
+    chunk: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E> | (AsyncChunk<T, E> & { setParams: (params: Partial<P>) => void });
+    initialParams?: Partial<P>;
+    fetchOnMount?: boolean;
+  } | null>(null);
+
+  if (!initConfigRef.current || initConfigRef.current.chunk !== asyncChunk) {
+    initConfigRef.current = {
+      chunk: asyncChunk,
+      initialParams,
+      fetchOnMount,
+    };
+  }
 
   // Subscribe to state changes
   useEffect(() => {
@@ -101,12 +114,16 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
 
   // Set initial params and trigger fetch
   useEffect(() => {
-    if (initialParams && hasSetParams(asyncChunk)) {
-      asyncChunk.setParams(initialParams);
-    } else if (fetchOnMount && !initialParams) {
+    const initConfig = initConfigRef.current;
+    const initialParamsForChunk = initConfig?.initialParams;
+    const fetchOnMountForChunk = initConfig?.fetchOnMount;
+
+    if (initialParamsForChunk && hasSetParams(asyncChunk)) {
+      asyncChunk.setParams(initialParamsForChunk);
+    } else if (fetchOnMountForChunk && !initialParamsForChunk) {
       asyncChunk.reload();
     }
-  }, [asyncChunk, initialParams, fetchOnMount]);
+  }, [asyncChunk]);
 
   // Cleanup on unmount
   useEffect(() => {
