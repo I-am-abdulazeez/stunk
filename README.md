@@ -30,7 +30,7 @@ pnpm install stunk
 
 Read Docs:
 
-[Stunk](https://stunk.vercel.app/)
+[Stunk](https://stunk.dev/)
 
 ## Creating a Chunk
 
@@ -44,7 +44,7 @@ const count = chunk<number>(0);
 const name = chunk<string>("Stunky, chunky");
 ```
 
-👉 [See full explanation in docs](https://stunk.vercel.app/chunk.html)
+👉 [See full explanation in docs](https://stunk.dev/chunk.html)
 
 ## Interacting with a Chunk
 
@@ -65,7 +65,7 @@ count.reset();
 count.destroy();
 ```
 
-👉 [See full explanation in docs](https://stunk.vercel.app/chunk.html)
+👉 [See full explanation in docs](https://stunk.dev/chunk.html)
 
 ## React via useChunk
 
@@ -90,7 +90,7 @@ const Counter = () => {
 };
 ```
 
-👉 [See full explanation in docs](https://stunk.vercel.app/useChunk.html)
+👉 [See full explanation in docs](https://stunk.dev/useChunk.html)
 
 ## React via useDerive
 
@@ -109,7 +109,7 @@ const DoubledCount = () => {
 };
 ```
 
-👉 [See full explanation in docs](https://stunk.vercel.app/useDerive.html)
+👉 [See full explanation in docs](https://stunk.dev/useDerive.html)
 
 ## React via useComputed
 
@@ -132,7 +132,7 @@ const ComputedExample = () => {
 };
 ```
 
-👉 [See full explanation in docs](https://stunk.vercel.app/useComputed.html)
+👉 [See full explanation in docs](https://stunk.dev/useComputed.html)
 
 ## React via useAsyncChunk
 
@@ -168,7 +168,7 @@ const UserProfile = () => {
 };
 ```
 
-👉 [See full explanation in docs](https://stunk.vercel.app/useAysncChunk.html)
+👉 [See full explanation in docs](https://stunk.dev/useAysncChunk.html)
 
 ## React via useChunkValue
 
@@ -187,15 +187,15 @@ const CounterDisplay = () => {
 };
 ```
 
-👉 [See full explanation in docs](https://stunk.vercel.app/read-only-values.html)
+👉 [See full explanation in docs](https://stunk.dev/read-only-values.html)
 
 Live Examples:
 
-👉 [Visit](https://stunk-examples.vercel.app/)
+👉 [Visit](https://stunk-examples.dev/)
 
 Coding Examples:
 
-👉 [Visit](https://stunk.vercel.app/examples.html)
+👉 [Visit](https://stunk.dev/examples.html)
 
 Further Examples:
 
