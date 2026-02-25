@@ -34,7 +34,7 @@ jobs:
 
       - name: Publish to NPM
         run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.STUNK_TOKEN }}" > ~/.npmrc
           VERSION=$(node -p "require('./package.json').version")
           if npm show stunk@$VERSION > /dev/null 2>&1; then
             echo "Version $VERSION already exists on NPM. Skipping publish."
@@ -42,5 +42,5 @@ jobs:
           fi
           pnpm publish --access public --no-git-checks
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.STUNK_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
