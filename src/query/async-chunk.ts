@@ -42,8 +42,8 @@ export interface PaginationConfig {
 export interface AsyncChunkOptExtended<T, E extends Error> extends AsyncChunkOpt<T, E> {
   refresh?: RefreshConfig;
   pagination?: PaginationConfig;
-  /** Enable/disable the fetcher */
-  enabled?: boolean;
+  /** Enable/disable the fetcher. Accepts a boolean or a function for dynamic evaluation. */
+  enabled?: boolean | (() => boolean);
 }
 
 export interface FetcherResponse<T> {
@@ -61,8 +61,12 @@ export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState
   mutate: (mutator: (currentData: T | null) => T) => void;
   /** Reset to initial state */
   reset: () => void;
-  /** Clean up intervals and event listeners */
+  /** Safe cleanup — only tears down if no active subscribers remain */
   cleanup: () => void;
+  /** Force cleanup regardless of subscriber count */
+  forceCleanup: () => void;
+  /** Clear all current params and refetch */
+  clearParams: () => void;
 }
 
 export interface PaginatedAsyncChunk<T, E extends Error = Error> extends AsyncChunk<T, E> {
@@ -102,7 +106,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     retryDelay = 1000,
     refresh: refreshConfig = {},
     pagination: paginationConfig,
-    enabled = true,
+    enabled: enabledOption = true,
   } = options;
 
   const {
@@ -112,12 +116,18 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     refetchOnWindowFocus = false,
   } = refreshConfig;
 
+  // enabled can be a static boolean or a dynamic function
+  const isEnabled = () =>
+    typeof enabledOption === 'function'
+      ? (enabledOption as () => boolean)()
+      : enabledOption;
+
   const isPaginated = !!paginationConfig;
   const paginationMode = paginationConfig?.mode || 'replace';
   const expectsParams = fetcher.length > 0;
 
   const initialState: AsyncStateWithPagination<T, E> = {
-    loading: enabled && !expectsParams,
+    loading: isEnabled() && !expectsParams,
     error: null,
     data: initialData,
     lastFetched: undefined,
@@ -132,6 +142,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   let intervalId: number | null = null;
   let cacheTimeoutId: number | null = null;
   let windowFocusHandler: (() => void) | null = null;
+  let subscriberCount = 0;
 
   const isStale = () => {
     const state = baseChunk.get();
@@ -154,8 +165,41 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     }
   };
 
+  const teardownSideEffects = () => {
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    if (cacheTimeoutId) {
+      clearTimeout(cacheTimeoutId);
+      cacheTimeoutId = null;
+    }
+    if (windowFocusHandler && typeof window !== 'undefined') {
+      window.removeEventListener('focus', windowFocusHandler);
+      windowFocusHandler = null;
+    }
+  };
+
+  // Single source of truth for all side effect setup
+  const setupSideEffects = () => {
+    if (!isEnabled()) return;
+
+    if (refetchInterval && refetchInterval > 0) {
+      intervalId = setInterval(() => {
+        fetchData(undefined, 0, false);
+      }, refetchInterval) as unknown as number;
+    }
+
+    if (refetchOnWindowFocus && typeof window !== 'undefined') {
+      windowFocusHandler = () => {
+        if (isStale()) fetchData(undefined, 0, false);
+      };
+      window.addEventListener('focus', windowFocusHandler);
+    }
+  };
+
   const fetchData = async (params?: Partial<P>, retries = retryCount, force = false): Promise<void> => {
-    if (!enabled) return;
+    if (!isEnabled()) return;
 
     if (params !== undefined) {
       currentParams = { ...currentParams, ...params };
@@ -193,8 +237,11 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         data = result as T;
       }
 
-      if (isPaginated && paginationMode === 'accumulate' && state.data && Array.isArray(state.data) && Array.isArray(data)) {
-        data = [...state.data, ...data] as T;
+      // Re-read state after await — state may have changed while fetching
+      const freshState = baseChunk.get();
+
+      if (isPaginated && paginationMode === 'accumulate' && freshState.data && Array.isArray(freshState.data) && Array.isArray(data)) {
+        data = [...freshState.data, ...data] as T;
       }
 
       baseChunk.set({
@@ -203,7 +250,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         data,
         lastFetched: Date.now(),
         pagination: isPaginated ? {
-          ...state.pagination!,
+          ...freshState.pagination!,
           total,
           hasMore,
         } : undefined,
@@ -216,58 +263,37 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         return fetchData(params, retries - 1, force);
       }
 
-      const state = baseChunk.get();
+      const currentState = baseChunk.get();
       baseChunk.set({
         loading: false,
         error: error as E,
-        data: state.data,
-        lastFetched: state.lastFetched,
-        pagination: state.pagination,
+        data: currentState.data,
+        lastFetched: currentState.lastFetched,
+        pagination: currentState.pagination,
       });
 
       if (onError) onError(error as E);
     }
   };
 
-  // Auto-refresh interval
-  if (refetchInterval && refetchInterval > 0 && enabled) {
-    intervalId = setInterval(() => {
-      if (enabled) fetchData(undefined, 0, false);
-    }, refetchInterval);
-  }
-
-  // Window focus refetch
-  if (refetchOnWindowFocus && typeof window !== 'undefined') {
-    windowFocusHandler = () => {
-      if (enabled && isStale()) {
-        fetchData(undefined, 0, false);
-      }
-    };
-    window.addEventListener('focus', windowFocusHandler);
-  }
-
-  // Initial fetch
-  if (enabled && !expectsParams) {
+  // Initialize side effects and initial fetch
+  setupSideEffects();
+  if (isEnabled() && !expectsParams) {
     fetchData();
   }
 
-  const cleanup = () => {
-    if (intervalId) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
-    if (cacheTimeoutId) {
-      clearTimeout(cacheTimeoutId);
-      cacheTimeoutId = null;
-    }
-    if (windowFocusHandler && typeof window !== 'undefined') {
-      window.removeEventListener('focus', windowFocusHandler);
-      windowFocusHandler = null;
-    }
-  };
-
   const baseInstance = {
     ...baseChunk,
+
+    // Ref-counted subscribe — tracks how many active subscribers exist
+    subscribe: (callback: (state: AsyncStateWithPagination<T, E>) => void) => {
+      subscriberCount++;
+      const unsubscribe = baseChunk.subscribe(callback);
+      return () => {
+        unsubscribe();
+        subscriberCount--;
+      };
+    },
 
     reload: async (params?: Partial<P>) => {
       await fetchData(params, retryCount, true);
@@ -279,39 +305,53 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
 
     mutate: (mutator: (currentData: T | null) => T) => {
       const state = baseChunk.get();
-      const newData = mutator(state.data);
-      baseChunk.set({ ...state, data: newData });
+      baseChunk.set({ ...state, data: mutator(state.data) });
     },
 
     reset: () => {
-      cleanup();
+      teardownSideEffects();
       currentParams = {};
       baseChunk.set({
         ...initialState,
-        loading: enabled && !expectsParams
+        loading: isEnabled() && !expectsParams,
       });
-      if (enabled && !expectsParams) {
+      setupSideEffects();
+      if (isEnabled() && !expectsParams) {
         fetchData();
-        if (refetchInterval && refetchInterval > 0) {
-          intervalId = setInterval(() => {
-            if (enabled) fetchData(undefined, 0, false);
-          }, refetchInterval);
-        }
-        if (refetchOnWindowFocus && typeof window !== 'undefined') {
-          windowFocusHandler = () => {
-            if (enabled && isStale()) fetchData(undefined, 0, false);
-          };
-          window.addEventListener('focus', windowFocusHandler);
-        }
       }
     },
 
-    cleanup,
+    // Safe cleanup — only tears down side effects if no active subscribers remain
+    cleanup: () => {
+      if (subscriberCount <= 0) {
+        teardownSideEffects();
+      }
+    },
 
-    setParams: (params: Partial<P>) => {
-      currentParams = { ...currentParams, ...params };
-      if (enabled) {
-        fetchData(params, retryCount, true);
+    // Force cleanup regardless of subscriber count — use for destroy scenarios
+    forceCleanup: () => {
+      teardownSideEffects();
+    },
+
+    setParams: (params: Partial<Record<keyof P, P[keyof P] | null>>) => {
+      const next = { ...currentParams };
+      for (const key in params) {
+        if (params[key] === null) {
+          delete next[key];
+        } else {
+          (next as any)[key] = params[key];
+        }
+      }
+      currentParams = next;
+      if (isEnabled()) {
+        fetchData(currentParams as Partial<P>, retryCount, true);
+      }
+    },
+
+    clearParams: () => {
+      currentParams = {};
+      if (isEnabled()) {
+        fetchData(undefined, retryCount, true);
       }
     },
   };
@@ -354,11 +394,10 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       resetPagination: async () => {
         const state = baseChunk.get();
         if (!state.pagination) return;
-        const initialPage = paginationConfig?.initialPage || 1;
         baseChunk.set({
           ...state,
           data: paginationMode === 'accumulate' ? initialData : state.data,
-          pagination: { ...state.pagination, page: initialPage }
+          pagination: { ...state.pagination, page: paginationConfig?.initialPage || 1 }
         });
         await fetchData(currentParams, retryCount, true);
       },
