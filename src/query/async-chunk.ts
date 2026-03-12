@@ -26,6 +26,8 @@ export interface RefreshConfig {
   cacheTime?: number;
   /** Auto-refresh interval in ms */
   refetchInterval?: number;
+  /** Refetch when window regains focus (default: false) */
+  refetchOnWindowFocus?: boolean;
 }
 
 export interface PaginationConfig {
@@ -59,7 +61,7 @@ export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState
   mutate: (mutator: (currentData: T | null) => T) => void;
   /** Reset to initial state */
   reset: () => void;
-  /** Clean up intervals */
+  /** Clean up intervals and event listeners */
   cleanup: () => void;
 }
 
@@ -103,10 +105,15 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     enabled = true,
   } = options;
 
-  const { staleTime = 0, cacheTime = 5 * 60 * 1000, refetchInterval } = refreshConfig;
+  const {
+    staleTime = 0,
+    cacheTime = 5 * 60 * 1000,
+    refetchInterval,
+    refetchOnWindowFocus = false,
+  } = refreshConfig;
+
   const isPaginated = !!paginationConfig;
   const paginationMode = paginationConfig?.mode || 'replace';
-
   const expectsParams = fetcher.length > 0;
 
   const initialState: AsyncStateWithPagination<T, E> = {
@@ -124,6 +131,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   let currentParams: Partial<P> = {};
   let intervalId: number | null = null;
   let cacheTimeoutId: number | null = null;
+  let windowFocusHandler: (() => void) | null = null;
 
   const isStale = () => {
     const state = baseChunk.get();
@@ -149,12 +157,10 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   const fetchData = async (params?: Partial<P>, retries = retryCount, force = false): Promise<void> => {
     if (!enabled) return;
 
-    // Update params if provided
     if (params !== undefined) {
       currentParams = { ...currentParams, ...params };
     }
 
-    // Check staleness
     if (!force && !isStale() && baseChunk.get().data !== null) {
       return;
     }
@@ -165,7 +171,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     try {
       let fetchParams: any = { ...currentParams };
 
-      // Add pagination params if enabled
       if (isPaginated && state.pagination) {
         fetchParams.page = state.pagination.page;
         fetchParams.pageSize = state.pagination.pageSize;
@@ -175,7 +180,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         ? await fetcher(fetchParams)
         : await (fetcher as () => Promise<T | FetcherResponse<T>>)();
 
-      // Handle response format
       let data: T;
       let total: number | undefined;
       let hasMore: boolean | undefined;
@@ -189,17 +193,15 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         data = result as T;
       }
 
-      // Handle pagination accumulation
       if (isPaginated && paginationMode === 'accumulate' && state.data && Array.isArray(state.data) && Array.isArray(data)) {
         data = [...state.data, ...data] as T;
       }
 
-      const now = Date.now();
       baseChunk.set({
         loading: false,
         error: null,
         data,
-        lastFetched: now,
+        lastFetched: Date.now(),
         pagination: isPaginated ? {
           ...state.pagination!,
           total,
@@ -227,11 +229,21 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     }
   };
 
-  // Auto-refresh setup
+  // Auto-refresh interval
   if (refetchInterval && refetchInterval > 0 && enabled) {
     intervalId = setInterval(() => {
       if (enabled) fetchData(undefined, 0, false);
     }, refetchInterval);
+  }
+
+  // Window focus refetch
+  if (refetchOnWindowFocus && typeof window !== 'undefined') {
+    windowFocusHandler = () => {
+      if (enabled && isStale()) {
+        fetchData(undefined, 0, false);
+      }
+    };
+    window.addEventListener('focus', windowFocusHandler);
   }
 
   // Initial fetch
@@ -247,6 +259,10 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     if (cacheTimeoutId) {
       clearTimeout(cacheTimeoutId);
       cacheTimeoutId = null;
+    }
+    if (windowFocusHandler && typeof window !== 'undefined') {
+      window.removeEventListener('focus', windowFocusHandler);
+      windowFocusHandler = null;
     }
   };
 
@@ -281,6 +297,12 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
             if (enabled) fetchData(undefined, 0, false);
           }, refetchInterval);
         }
+        if (refetchOnWindowFocus && typeof window !== 'undefined') {
+          windowFocusHandler = () => {
+            if (enabled && isStale()) fetchData(undefined, 0, false);
+          };
+          window.addEventListener('focus', windowFocusHandler);
+        }
       }
     },
 
@@ -289,12 +311,11 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     setParams: (params: Partial<P>) => {
       currentParams = { ...currentParams, ...params };
       if (enabled) {
-        fetchData(params, retryCount, true); // Fetch immediately with new params
+        fetchData(params, retryCount, true);
       }
     },
   };
 
-  // Add pagination methods if enabled
   if (isPaginated) {
     return {
       ...baseInstance,
@@ -302,15 +323,10 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       nextPage: async () => {
         const state = baseChunk.get();
         if (!state.pagination) return;
-
         if (state.pagination.hasMore === false) return;
-
         baseChunk.set({
           ...state,
-          pagination: {
-            ...state.pagination,
-            page: state.pagination.page + 1,
-          }
+          pagination: { ...state.pagination, page: state.pagination.page + 1 }
         });
         await fetchData(currentParams, retryCount, true);
       },
@@ -318,13 +334,9 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       prevPage: async () => {
         const state = baseChunk.get();
         if (!state.pagination || state.pagination.page <= 1) return;
-
         baseChunk.set({
           ...state,
-          pagination: {
-            ...state.pagination,
-            page: state.pagination.page - 1,
-          }
+          pagination: { ...state.pagination, page: state.pagination.page - 1 }
         });
         await fetchData(currentParams, retryCount, true);
       },
@@ -332,13 +344,9 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       goToPage: async (page: number) => {
         const state = baseChunk.get();
         if (!state.pagination || page < 1) return;
-
         baseChunk.set({
           ...state,
-          pagination: {
-            ...state.pagination,
-            page,
-          }
+          pagination: { ...state.pagination, page }
         });
         await fetchData(currentParams, retryCount, true);
       },
@@ -346,15 +354,11 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       resetPagination: async () => {
         const state = baseChunk.get();
         if (!state.pagination) return;
-
         const initialPage = paginationConfig?.initialPage || 1;
         baseChunk.set({
           ...state,
           data: paginationMode === 'accumulate' ? initialData : state.data,
-          pagination: {
-            ...state.pagination,
-            page: initialPage,
-          }
+          pagination: { ...state.pagination, page: initialPage }
         });
         await fetchData(currentParams, retryCount, true);
       },
