@@ -7,12 +7,31 @@ interface InfiniteAsyncChunkOptions<T, E extends Error> {
   staleTime?: number;
   /** Time in ms to cache data */
   cacheTime?: number;
+  /** Auto-refresh interval in ms */
+  refetchInterval?: number;
+  /** Refetch when window regains focus (default: false) */
+  refetchOnWindowFocus?: boolean;
   /** Retry count on error */
   retryCount?: number;
   /** Delay between retries in ms */
   retryDelay?: number;
   /** Error callback */
   onError?: (error: E) => void;
+  /** Success callback */
+  onSuccess?: (data: T[]) => void;
+  /**
+   * Unique key for request deduplication.
+   * If two components call reload() on the same keyed chunk simultaneously,
+   * only one request fires.
+   */
+  key?: string;
+  /**
+   * Enable or disable the fetcher.
+   * Accepts a static boolean or a function for dynamic evaluation.
+   */
+  enabled?: boolean | (() => boolean);
+  /** Keep previous data visible while new data is loading (default: false) */
+  keepPreviousData?: boolean;
 }
 
 /**
@@ -39,9 +58,15 @@ export function infiniteAsyncChunk<
     pageSize = 10,
     staleTime,
     cacheTime,
+    refetchInterval,
+    refetchOnWindowFocus,
     retryCount,
     retryDelay,
     onError,
+    onSuccess,
+    key,
+    enabled,
+    keepPreviousData,
   } = options;
 
   return asyncChunk<T[], E, P & { page: number; pageSize: number }>(
@@ -55,10 +80,16 @@ export function infiniteAsyncChunk<
       refresh: {
         staleTime,
         cacheTime,
+        refetchInterval,
+        refetchOnWindowFocus,
       },
       retryCount,
       retryDelay,
       onError,
+      onSuccess,
+      key,
+      enabled,
+      keepPreviousData,
     }
   ) as PaginatedAsyncChunk<T[], E> & {
     setParams: (params: Partial<P>) => void;
