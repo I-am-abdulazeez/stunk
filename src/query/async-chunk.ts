@@ -1,6 +1,11 @@
 import { chunk, Chunk } from "../core/core";
 import { AsyncChunkOpt } from "../core/types";
 
+// Global registry for in-flight request deduplication
+// Key: chunk name (if provided) or auto-generated chunkId
+const inFlightRequests = new Map<string, Promise<void>>();
+let chunkCounter = 0;
+
 export interface AsyncState<T, E extends Error> {
   loading: boolean;
   error: E | null;
@@ -42,11 +47,21 @@ export interface PaginationConfig {
 }
 
 export interface AsyncChunkOptExtended<T, E extends Error> extends AsyncChunkOpt<T, E> {
+  /**
+   * Unique key(name) for this async chunk.
+   * Used as the deduplication key — if two components call reload() on the same
+   * named chunk simultaneously, only one request fires. Defaults to an auto-generated ID.
+   */
+  key?: string;
   refresh?: RefreshConfig;
   pagination?: PaginationConfig;
-  /** Enable/disable the fetcher. Accepts a boolean or a function for dynamic evaluation. */
+  /**
+  * Enable or disable the fetcher.
+  * Accepts a static boolean or a function for dynamic evaluation.
+  * When false, no fetch is triggered until enabled again.
+  */
   enabled?: boolean | (() => boolean);
-  /** Keep previous data visible while new data is loading (default: false) */
+  /** Keep previous data visible while new data is loading — prevents UI flicker on param changes (default: false) */
   keepPreviousData?: boolean;
 }
 
@@ -112,7 +127,8 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     refresh: refreshConfig = {},
     pagination: paginationConfig,
     enabled: enabledOption = true,
-    keepPreviousData = false
+    keepPreviousData = false,
+    key
   } = options;
 
   const {
@@ -121,6 +137,9 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     refetchInterval,
     refetchOnWindowFocus = false,
   } = refreshConfig;
+
+  // Stable deduplication key — named chunks share in-flight requests across components
+  const chunkKey = key ?? `async_chunk_${chunkCounter++}`;
 
   // enabled can be a static boolean or a dynamic function
   const isEnabled = () =>
@@ -215,7 +234,14 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       return;
     }
 
+    // --- Request deduplication ---
+    // If a request with the same key is already in-flight, return that promise
+    if (inFlightRequests.has(chunkKey)) {
+      return inFlightRequests.get(chunkKey)!;
+    }
+
     const state = baseChunk.get();
+
     baseChunk.set({
       ...state,
       loading: true,
@@ -223,75 +249,93 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       // Keep previous data visible while loading if keepPreviousData is true
       data: keepPreviousData ? state.data : state.data,
       isPlaceholderData: keepPreviousData && state.data !== null,
-
     });
 
-    try {
-      let fetchParams: any = { ...currentParams };
+    const request = (async () => {
+      try {
+        let fetchParams: any = { ...currentParams };
 
-      if (isPaginated && state.pagination) {
-        fetchParams.page = state.pagination.page;
-        fetchParams.pageSize = state.pagination.pageSize;
+        if (isPaginated) {
+          // Re-read pagination state fresh — don't use stale closure
+          const currentPagination = baseChunk.get().pagination;
+          if (currentPagination) {
+            fetchParams.page = currentPagination.page;
+            fetchParams.pageSize = currentPagination.pageSize;
+          }
+        }
+
+        const result = expectsParams
+          ? await fetcher(fetchParams)
+          : await (fetcher as () => Promise<T | FetcherResponse<T>>)();
+
+
+        let data: T;
+        let total: number | undefined;
+        let hasMore: boolean | undefined;
+
+        if (result && typeof result === 'object' && 'data' in result) {
+          const response = result as FetcherResponse<T>;
+          data = response.data;
+          total = response.total;
+          hasMore = response.hasMore;
+        } else {
+          data = result as T;
+        }
+
+        // Re-read state after await — state may have changed while fetching
+        const freshState = baseChunk.get();
+
+        if (
+          isPaginated &&
+          paginationMode === 'accumulate' &&
+          freshState.data &&
+          Array.isArray(freshState.data) &&
+          Array.isArray(data)
+        ) {
+          data = [...(freshState.data as any[]), ...data] as T;
+        }
+
+        baseChunk.set({
+          loading: false,
+          error: null,
+          data,
+          lastFetched: Date.now(),
+          isPlaceholderData: false,
+          pagination: isPaginated ? {
+            ...freshState.pagination!,
+            total,
+            hasMore,
+          } : undefined,
+        });
+        setCacheTimeout();
+        if (onSuccess) onSuccess(data);
+      } catch (error) {
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          // Remove in-flight entry so retry can register a new one
+          inFlightRequests.delete(chunkKey);
+          return fetchData(params, retries - 1, force);
+        }
+
+        const currentState = baseChunk.get();
+        baseChunk.set({
+          loading: false,
+          error: error as E,
+          data: currentState.data,
+          lastFetched: currentState.lastFetched,
+          isPlaceholderData: false,
+          pagination: currentState.pagination,
+        });
+
+        if (onError) onError(error as E);
+      } finally {
+        inFlightRequests.delete(chunkKey);
       }
+    })();
 
-      const result = expectsParams
-        ? await fetcher(fetchParams)
-        : await (fetcher as () => Promise<T | FetcherResponse<T>>)();
-
-      let data: T;
-      let total: number | undefined;
-      let hasMore: boolean | undefined;
-
-      if (result && typeof result === 'object' && 'data' in result) {
-        const response = result as FetcherResponse<T>;
-        data = response.data;
-        total = response.total;
-        hasMore = response.hasMore;
-      } else {
-        data = result as T;
-      }
-
-      // Re-read state after await — state may have changed while fetching
-      const freshState = baseChunk.get();
-
-      if (isPaginated && paginationMode === 'accumulate' && freshState.data && Array.isArray(freshState.data) && Array.isArray(data)) {
-        data = [...freshState.data, ...data] as T;
-      }
-
-      baseChunk.set({
-        loading: false,
-        error: null,
-        data,
-        lastFetched: Date.now(),
-        isPlaceholderData: false,
-        pagination: isPaginated ? {
-          ...freshState.pagination!,
-          total,
-          hasMore,
-        } : undefined,
-      });
-
-      setCacheTimeout();
-      if (onSuccess) onSuccess(data);
-    } catch (error) {
-      if (retries > 0) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-        return fetchData(params, retries - 1, force);
-      }
-
-      const currentState = baseChunk.get();
-      baseChunk.set({
-        loading: false,
-        error: error as E,
-        data: currentState.data,
-        lastFetched: currentState.lastFetched,
-        pagination: currentState.pagination,
-        isPlaceholderData: false,
-      });
-
-      if (onError) onError(error as E);
-    }
-  };
+    inFlightRequests.set(chunkKey, request);
+    return request;
+  }
 
   // Initialize side effects and initial fetch
   setupSideEffects();
