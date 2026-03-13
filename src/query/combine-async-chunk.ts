@@ -9,54 +9,59 @@ import type { AsyncChunk } from "./async-chunk";
 export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   chunks: T
 ): Chunk<CombinedState<T>> {
-  const initialData = Object.keys(chunks).reduce((acc, key) => {
-    acc[key as keyof T] = null;
+  const entries = Object.entries(chunks);
+
+  // Pre-populate initial data and state from each chunk's current state
+  const initialData = entries.reduce((acc, [key, asyncChunk]) => {
+    acc[key as keyof T] = asyncChunk.get().data;
     return acc;
   }, {} as CombinedData<T>);
 
+  const initialErrors = entries.reduce((acc, [key, asyncChunk]) => {
+    const error = asyncChunk.get().error;
+    if (error) acc[key as keyof T] = error;
+    return acc;
+  }, {} as Partial<{ [K in keyof T]: Error }>);
+
+  const initialLoading = entries.some(([, asyncChunk]) => asyncChunk.get().loading);
+  const initialFirstError = entries.find(([, asyncChunk]) => asyncChunk.get().error)?.[1].get().error ?? null;
+
   const initialState: CombinedState<T> = {
-    loading: Object.keys(chunks).length > 0,
-    error: null,
-    errors: {},
-    data: initialData
+    loading: initialLoading,
+    error: initialFirstError,
+    errors: initialErrors,
+    data: initialData,
   };
 
   const combined = chunk(initialState);
 
-
   // Subscribe to each async chunk
-  Object.entries(chunks).forEach(([key, asyncChunk]) => {
-    asyncChunk.subscribe((state) => {
-      const currentState = combined.get();
-
-      // Recalculate loading and error states from all chunks
+  entries.forEach(([key, asyncChunk]) => {
+    asyncChunk.subscribe(() => {
+      // Always re-read all chunks fresh — avoids stale closure on individual state arg
       let hasLoading = false;
       let firstError: Error | null = null;
       const allErrors: Partial<{ [K in keyof T]: Error }> = {};
+      const newData = { ...combined.get().data };
 
-      Object.entries(chunks).forEach(([chunkKey, chunk]) => {
-        const chunkState = chunk.get();
+      entries.forEach(([chunkKey, c]) => {
+        const chunkState = c.get();
 
-        // Check loading state
-        if (chunkState.loading) {
-          hasLoading = true;
-        }
-        // Collect errors
+        if (chunkState.loading) hasLoading = true;
+
         if (chunkState.error) {
           if (!firstError) firstError = chunkState.error;
           allErrors[chunkKey as keyof T] = chunkState.error;
         }
+
+        newData[chunkKey as keyof T] = chunkState.data;
       });
 
-      // Update combined state
       combined.set({
         loading: hasLoading,
         error: firstError,
         errors: allErrors,
-        data: {
-          ...currentState.data,
-          [key]: state.data
-        },
+        data: newData,
       });
     });
   });
