@@ -208,6 +208,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   // Single source of truth for all side effect setup
   const setupSideEffects = () => {
     if (!isEnabled()) return;
+    if (typeof window === 'undefined') return; // skip all side effects on server
 
     if (refetchInterval && refetchInterval > 0) {
       intervalId = setInterval(() => {
