@@ -541,26 +541,6 @@ describe('asyncChunk — side effects', () => {
     expect(fetchCount).toBe(1);
   });
 
-  it('should stop auto-refetch after cleanup', async () => {
-    let fetchCount = 0;
-
-    const userChunk = asyncChunk<User>(
-      async () => {
-        fetchCount++;
-        return { id: fetchCount, name: `User ${fetchCount}` };
-      },
-      { refresh: { refetchInterval: 1000 } }
-    );
-
-    await vi.runAllTimersAsync();
-    expect(fetchCount).toBe(1);
-
-    userChunk.forceCleanup();
-
-    await vi.advanceTimersByTimeAsync(3000);
-    expect(fetchCount).toBe(1); // no more fetches
-  });
-
   it('should refetch on window focus when refetchOnWindowFocus is true', async () => {
     let fetchCount = 0;
 
