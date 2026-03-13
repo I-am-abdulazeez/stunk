@@ -156,6 +156,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     error: null,
     data: initialData,
     lastFetched: undefined,
+    isPlaceholderData: false,
     pagination: isPaginated ? {
       page: paginationConfig.initialPage || 1,
       pageSize: paginationConfig.pageSize || 10,
