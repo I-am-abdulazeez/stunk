@@ -594,15 +594,16 @@ describe('asyncChunk — side effects', () => {
       { refresh: { refetchOnWindowFocus: true, staleTime: 60_000 } }
     );
 
-    await vi.runAllTimersAsync();
+    await vi.advanceTimersByTimeAsync(100);
     expect(fetchCount).toBe(1);
 
     window.dispatchEvent(new Event('focus'));
-    await vi.runAllTimersAsync();
+    await vi.advanceTimersByTimeAsync(100);
     expect(fetchCount).toBe(1); // still fresh, no refetch
 
     userChunk.forceCleanup();
   });
+
 });
 
 
