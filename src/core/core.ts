@@ -31,10 +31,8 @@ export interface ReadOnlyChunk<T> extends Omit<Chunk<T>, 'set' | 'reset'> {
   derive: <D>(fn: (value: T) => D) => ReadOnlyChunk<D>;
 }
 
-// ============================================================================
-// DEPENDENCY TRACKING SYSTEM (for computed)
-// ============================================================================
 
+// DEPENDENCY TRACKING SYSTEM (for computed)
 let activeEffect: Set<Chunk<any>> | null = null;
 
 /**
@@ -62,10 +60,8 @@ function trackChunkAccess(chunk: Chunk<any>) {
   }
 }
 
-// ============================================================================
-// BATCHING SYSTEM
-// ============================================================================
 
+// BATCHING SYSTEM
 let isBatching = false;
 const dirtyChunks = new Set<number>();
 const chunkRegistry = new Map<number, { notify: () => void }>();
@@ -93,10 +89,8 @@ export function batch(callback: () => void) {
   }
 }
 
-// ============================================================================
-// CHUNK IMPLEMENTATION
-// ============================================================================
 
+// CHUNK IMPLEMENTATION
 export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T> {
   const chunkId = chunkIdCounter++;
   const chunkName = __DEV__
