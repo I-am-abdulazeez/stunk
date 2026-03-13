@@ -102,6 +102,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   const {
     initialData = null,
     onError,
+    onSuccess,
     retryCount = 0,
     retryDelay = 1000,
     refresh: refreshConfig = {},
@@ -257,6 +258,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       });
 
       setCacheTimeout();
+      if (onSuccess) onSuccess(data);
     } catch (error) {
       if (retries > 0) {
         await new Promise(resolve => setTimeout(resolve, retryDelay));
