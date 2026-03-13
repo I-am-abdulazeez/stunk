@@ -6,6 +6,8 @@ export interface AsyncState<T, E extends Error> {
   error: E | null;
   data: T | null;
   lastFetched?: number;
+  /** True when showing previous data while new data is loading (keepPreviousData: true) */
+  isPlaceholderData?: boolean;
 }
 
 export interface PaginationState {
@@ -44,6 +46,8 @@ export interface AsyncChunkOptExtended<T, E extends Error> extends AsyncChunkOpt
   pagination?: PaginationConfig;
   /** Enable/disable the fetcher. Accepts a boolean or a function for dynamic evaluation. */
   enabled?: boolean | (() => boolean);
+  /** Keep previous data visible while new data is loading (default: false) */
+  keepPreviousData?: boolean;
 }
 
 export interface FetcherResponse<T> {
@@ -108,6 +112,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     refresh: refreshConfig = {},
     pagination: paginationConfig,
     enabled: enabledOption = true,
+    keepPreviousData = false
   } = options;
 
   const {
@@ -211,7 +216,15 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     }
 
     const state = baseChunk.get();
-    baseChunk.set({ ...state, loading: true, error: null });
+    baseChunk.set({
+      ...state,
+      loading: true,
+      error: null,
+      // Keep previous data visible while loading if keepPreviousData is true
+      data: keepPreviousData ? state.data : state.data,
+      isPlaceholderData: keepPreviousData && state.data !== null,
+
+    });
 
     try {
       let fetchParams: any = { ...currentParams };
@@ -250,6 +263,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         error: null,
         data,
         lastFetched: Date.now(),
+        isPlaceholderData: false,
         pagination: isPaginated ? {
           ...freshState.pagination!,
           total,
@@ -272,6 +286,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         data: currentState.data,
         lastFetched: currentState.lastFetched,
         pagination: currentState.pagination,
+        isPlaceholderData: false,
       });
 
       if (onError) onError(error as E);
