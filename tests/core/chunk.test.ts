@@ -410,3 +410,91 @@ describe("chunk — batch", () => {
     expect(callback).toHaveBeenCalledWith(3);
   });
 });
+
+
+describe("chunk — strict mode", () => {
+  it("should warn on unknown keys in dev mode (non-strict)", () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+
+    const c = chunk({ name: "John", age: 30 });
+
+    // Spread with extra key — not in initial shape
+    c.set({ name: "Jane", age: 31, role: "admin" } as any);
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Unexpected keys in set(): role")
+    );
+
+    consoleSpy.mockRestore();
+  });
+
+  it("should throw on unknown keys when strict: true", () => {
+    const c = chunk({ name: "John", age: 30 }, { strict: true });
+
+    expect(() => {
+      c.set({ name: "Jane", age: 31, role: "admin" } as any);
+    }).toThrow("Unexpected keys in set(): role");
+  });
+
+  it("should not warn when all keys are within the initial shape", () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+
+    const c = chunk({ name: "John", age: 30 });
+    c.set({ name: "Jane", age: 31 });
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it("should not enforce key shape on primitives", () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+
+    const c = chunk(42);
+    c.set(100);
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it("should not enforce key shape on arrays", () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+
+    const c = chunk([1, 2, 3]);
+    c.set([4, 5, 6, 7]); // different length — not a shape violation
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it("should not enforce key shape on null", () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+
+    const c = chunk<{ name: string } | null>({ name: "John" });
+    c.set(null);
+
+    // null is valid — should not trigger key enforcement
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it("should include chunk name in strict mode error message", () => {
+    const c = chunk({ name: "John" }, { name: "userChunk", strict: true });
+
+    expect(() => {
+      c.set({ name: "Jane", role: "admin" } as any);
+    }).toThrow("[userChunk] Unexpected keys in set(): role");
+  });
+
+  it("should allow keys that were added after initial shape via allowedKeys update on reset", () => {
+    const c = chunk({ name: "John", age: 30 }, { strict: true });
+
+    // Known keys — no throw
+    expect(() => {
+      c.set({ name: "Jane", age: 31 });
+    }).not.toThrow();
+  });
+});
