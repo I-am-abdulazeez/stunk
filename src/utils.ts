@@ -217,8 +217,8 @@ export function validateObjectShape<T>(
     const originalValue = (original as any)[key];
     const updatedValue = (updated as any)[key];
 
-    // Skip undefined → T type checks — intentional "not yet set" pattern
-    if (originalValue === undefined || updatedValue === undefined) {
+    // Skip undefined → T or T → null transitions — both are valid v3 patterns
+    if (originalValue === undefined || updatedValue === undefined || updatedValue === null) {
       continue;
     }
 
