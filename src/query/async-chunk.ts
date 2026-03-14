@@ -157,9 +157,13 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     data: initialData,
     lastFetched: undefined,
     isPlaceholderData: false,
+    // Declare all pagination fields upfront so validateObjectShape
+    // knows the full shape and doesn't warn when total/hasMore arrive
     pagination: isPaginated ? {
       page: paginationConfig.initialPage || 1,
       pageSize: paginationConfig.pageSize || 10,
+      total: undefined,
+      hasMore: undefined,
     } : undefined,
   };
 
@@ -248,7 +252,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       ...state,
       loading: true,
       error: null,
-      // Keep previous data visible while loading if keepPreviousData is true
       data: keepPreviousData ? state.data : state.data,
       isPlaceholderData: keepPreviousData && state.data !== null,
     });
@@ -269,7 +272,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         const result = expectsParams
           ? await fetcher(fetchParams)
           : await (fetcher as () => Promise<T | FetcherResponse<T>>)();
-
 
         let data: T;
         let total: number | undefined;
@@ -309,6 +311,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
             hasMore,
           } : undefined,
         });
+
         setCacheTimeout();
         if (onSuccess) onSuccess(data);
       } catch (error) {
@@ -337,7 +340,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
 
     inFlightRequests.set(chunkKey, request);
     return request;
-  }
+  };
 
   // Initialize side effects and initial fetch
   setupSideEffects();
