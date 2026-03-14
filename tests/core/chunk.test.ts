@@ -1,309 +1,77 @@
 import { afterAll, beforeEach, describe, expect, it, test, vi } from "vitest";
-import { batch, chunk } from "../../src/core/core";
+import { batch, chunk, trackDependencies } from "../../src/core/core";
 
-test("Chunk should get and set values correctly", () => {
-  const chunky = chunk<number>(0);
-  expect(chunky.get()).toBe(0);
-  chunky.set(10);
-  expect(chunky.get()).toBe(10);
-  chunky.set((prev) => prev + 1);
-  expect(chunky.get()).toBe(11);
+
+test("should get and set values correctly", () => {
+  const c = chunk<number>(0);
+  expect(c.get()).toBe(0);
+
+  c.set(10);
+  expect(c.get()).toBe(10);
+
+  c.set(prev => prev + 1);
+  expect(c.get()).toBe(11);
 });
 
-test("Chunk should notify subscribers on value change", () => {
-  const chunky = chunk<number>(0);
+test("should notify subscribers on value change", () => {
+  const c = chunk<number>(0);
   const callback = vi.fn();
-  const unsubscribe = chunky.subscribe(callback);
+  const unsubscribe = c.subscribe(callback);
 
-  chunky.set(5);
+  c.set(5);
   expect(callback).toHaveBeenCalledWith(5);
 
-  chunky.set(10);
-  expect(callback).toHaveBeenCalledWith(10);
-
-  chunky.set(10);
+  c.set(10);
   expect(callback).toHaveBeenCalledWith(10);
 
   unsubscribe();
 });
 
-test("Chunk should notify multiple subscribers correctly", () => {
-  const chunky = chunk<number>(0);
-  const callback1 = vi.fn();
-  const callback2 = vi.fn();
+test("should notify multiple subscribers correctly", () => {
+  const c = chunk<number>(0);
+  const cb1 = vi.fn();
+  const cb2 = vi.fn();
 
-  const unsubscribe1 = chunky.subscribe(callback1);
-  const unsubscribe2 = chunky.subscribe(callback2);
+  const unsub1 = c.subscribe(cb1);
+  const unsub2 = c.subscribe(cb2);
 
-  chunky.set(10);
+  c.set(10);
+  expect(cb1).toHaveBeenCalledWith(10);
+  expect(cb2).toHaveBeenCalledWith(10);
 
-  expect(callback1).toHaveBeenCalledWith(10);
-  expect(callback2).toHaveBeenCalledWith(10);
-
-  unsubscribe1();
-  unsubscribe2();
+  unsub1();
+  unsub2();
 });
 
-// ✅ UPDATED: No initial subscription call
-test("Chunk should allow unsubscribing from updates", () => {
-  const chunky = chunk<number>(0);
+test("should not call subscriber on initial subscribe — no immediate call", () => {
+  const c = chunk<number>(0);
   const callback = vi.fn();
-  const unsubscribe = chunky.subscribe(callback);
+  const unsubscribe = c.subscribe(callback);
 
-  // No initial subscription call anymore
   expect(callback).toHaveBeenCalledTimes(0);
 
-  chunky.set(5);
+  c.set(5);
   expect(callback).toHaveBeenCalledWith(5);
   expect(callback).toHaveBeenCalledTimes(1);
 
   unsubscribe();
-  chunky.set(10);
-  expect(callback).toHaveBeenCalledTimes(1); // Still 1, not called after unsubscribe
+  c.set(10);
+  expect(callback).toHaveBeenCalledTimes(1); // unsubscribed — not called again
 });
 
-describe("Chunk Derivation", () => {
-  it("should create a derived chunk and update it when the original chunk changes", () => {
-    const count = chunk(5);
-    const doubleCount = count.derive((value) => value * 2);
-
-    const countSpy = vi.fn();
-    const doubleCountSpy = vi.fn();
-
-    // Subscribe to both chunks
-    count.subscribe(countSpy);
-    doubleCount.subscribe(doubleCountSpy);
-
-    expect(count.get()).toBe(5);
-    expect(doubleCount.get()).toBe(10);
-
-    // No initial calls
-    expect(countSpy).toHaveBeenCalledTimes(0);
-    expect(doubleCountSpy).toHaveBeenCalledTimes(0);
-
-    // Update count and verify updates
-    count.set(10);
-    expect(count.get()).toBe(10);
-    expect(doubleCount.get()).toBe(20);
-    expect(countSpy).toHaveBeenCalledWith(10);
-    expect(doubleCountSpy).toHaveBeenCalledWith(20);
-  });
-
-  it("should not update the derived chunk if the original chunk value does not change", () => {
-    const count = chunk(5);
-    const doubleCount = count.derive((value) => value * 2);
-
-    const doubleCountSpy = vi.fn();
-    doubleCount.subscribe(doubleCountSpy);
-
-    // Setting the same value
-    count.set(5);
-    expect(doubleCount.get()).toBe(10);
-    expect(doubleCountSpy).toHaveBeenCalledTimes(0); // No change, so no notification
-  });
+test("should reset to initial value", () => {
+  const c = chunk(5);
+  c.set(10);
+  expect(c.get()).toBe(10);
+  c.reset();
+  expect(c.get()).toBe(5);
 });
 
-test("Chunk should reset to initial value", () => {
-  const count = chunk(5);
-  count.set(10);
-  expect(count.get()).toBe(10);
-  count.reset();
-  expect(count.get()).toBe(5);
-});
 
-describe("Chunk destroy", () => {
-  const countChunk = chunk(0);
-  const anotherChunk = chunk(0);
-  const countCallback = vi.fn();
-  const anotherCallback = vi.fn();
-
-  beforeEach(() => {
-    countCallback.mockClear();
-    anotherCallback.mockClear();
-  });
-
-  it("should stop notifying subscribers after destroy is called", () => {
-    // Subscribe to the chunks
-    const countUnsubscribe = countChunk.subscribe(countCallback);
-    const anotherUnsubscribe = anotherChunk.subscribe(anotherCallback);
-
-    // No initial calls
-    expect(countCallback).toHaveBeenCalledTimes(0);
-    expect(anotherCallback).toHaveBeenCalledTimes(0);
-
-    // Cleanup subscriptions before destroy
-    countUnsubscribe();
-    anotherUnsubscribe();
-
-    // Now destroy the chunks
-    countChunk.destroy();
-    anotherChunk.destroy();
-
-    // Try setting new values after destruction
-    countChunk.set(30);
-    anotherChunk.set(40);
-
-    // Ensure that the subscribers were not notified after destroy
-    expect(countCallback).toHaveBeenCalledTimes(0);
-    expect(anotherCallback).toHaveBeenCalledTimes(0);
-  });
-
-  it("should reset to initial value after destroy", () => {
-    // Set some values
-    countChunk.set(10);
-    anotherChunk.set(20);
-
-    // Destroy the chunks
-    countChunk.destroy();
-    anotherChunk.destroy();
-
-    // Subscribe new callbacks after destroy
-    const newCountCallback = vi.fn();
-    const newAnotherCallback = vi.fn();
-
-    const newCountUnsubscribe = countChunk.subscribe(newCountCallback);
-    const newAnotherUnsubscribe = anotherChunk.subscribe(newAnotherCallback);
-
-    // Should not receive initial values (no initial call)
-    expect(newCountCallback).toHaveBeenCalledTimes(0);
-    expect(newAnotherCallback).toHaveBeenCalledTimes(0);
-
-    // But get() should return initial values
-    expect(countChunk.get()).toBe(0);
-    expect(anotherChunk.get()).toBe(0);
-
-    newCountUnsubscribe();
-    newAnotherUnsubscribe();
-  });
-
-  afterAll(() => {
-    countChunk.destroy();
-    anotherChunk.destroy();
-  });
-});
-
-describe("chunk update", () => {
-  it("should update value using updater function", () => {
-    const store = chunk(5);
-    store.set((value) => value + 1);
-    expect(store.get()).toBe(6);
-  });
-
-  it("should notify subscribers only if value changes", () => {
-    const store = chunk(5);
-    const subscriber = vi.fn();
-    store.subscribe(subscriber);
-
-    // Update to same value
-    store.set((value) => value);
-    expect(subscriber).not.toHaveBeenCalled();
-
-    store.set((value) => value + 1);
-    expect(subscriber).toHaveBeenCalledWith(6);
-    expect(subscriber).toHaveBeenCalledTimes(1);
-  });
-
-  it("should handle complex update logic", () => {
-    const store = chunk(5);
-    store.set((value) => {
-      if (value > 3) {
-        return value * 2;
-      }
-      return value + 1;
-    });
-    expect(store.get()).toBe(10);
-  });
-
-  it("should maintain type safety", () => {
-    interface User {
-      name: string;
-      age: number;
-    }
-
-    const store = chunk<User>({ name: "John", age: 30 });
-
-    store.set((user) => ({
-      ...user,
-      age: user.age + 1,
-    }));
-
-    const user = store.get();
-    expect(user.age).toBe(31);
-    expect(user.name).toBe("John");
-  });
-});
-
-describe("Chunk Shallow Check", () => {
-  it("should not notify on same primitive", () => {
-    const numChunk = chunk(1);
-    const callback = vi.fn();
-    numChunk.subscribe(callback);
-
-    batch(() => {
-      numChunk.set(1);
-    });
-
-    expect(callback).not.toHaveBeenCalled();
-  });
-
-  it("should notify on primitive change", () => {
-    const numChunk = chunk(1);
-    const callback = vi.fn();
-    numChunk.subscribe(callback);
-
-    batch(() => {
-      numChunk.set(2);
-    });
-
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenLastCalledWith(2);
-  });
-
-  it("should notify on shallow different objects", () => {
-    const objChunk = chunk({ a: 1 });
-    const callback = vi.fn();
-    objChunk.subscribe(callback);
-
-    batch(() => {
-      objChunk.set({ a: 2 });
-    });
-
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenLastCalledWith({ a: 2 });
-  });
-});
-
-describe("Chunk peek()", () => {
-  it("should return current value without tracking dependencies", () => {
-    const count = chunk(5);
-
-    expect(count.peek()).toBe(5);
-
-    count.set(10);
-    expect(count.peek()).toBe(10);
-  });
-
-  it("should not trigger subscriptions", () => {
-    const count = chunk(5);
-    const callback = vi.fn();
-
-    count.subscribe(callback);
-
-    // Peek shouldn't trigger callback
-    count.peek();
-    expect(callback).toHaveBeenCalledTimes(0);
-
-    // But set should
-    count.set(10);
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(10);
-  });
-});
-
-describe("Chunk initialization", () => {
+describe("chunk — initialization", () => {
   it("should reject undefined as initial value", () => {
-    expect(() => chunk(undefined)).toThrow(
-      "Initial value cannot be undefined. Use null for empty values."
+    expect(() => chunk(undefined as any, { name: "Bola" })).toThrow(
+      "[Bola] Initial value cannot be undefined."
     );
   });
 
@@ -318,14 +86,324 @@ describe("Chunk initialization", () => {
     expect(nullChunk.get()).toBe(null);
   });
 
-  it("should allow 0, false, and empty string", () => {
-    const zeroChunk = chunk(0);
-    expect(zeroChunk.get()).toBe(0);
+  it("should allow 0, false, and empty string as initial values", () => {
+    expect(chunk(0).get()).toBe(0);
+    expect(chunk(false).get()).toBe(false);
+    expect(chunk("").get()).toBe("");
+  });
 
-    const falseChunk = chunk(false);
-    expect(falseChunk.get()).toBe(false);
+  it("should allow objects and arrays as initial values", () => {
+    const obj = { name: "Stunk", version: 3 };
+    const arr = [1, 2, 3];
 
-    const emptyChunk = chunk("");
-    expect(emptyChunk.get()).toBe("");
+    expect(chunk(obj).get()).toEqual(obj);
+    expect(chunk(arr).get()).toEqual(arr);
+  });
+});
+
+
+describe("chunk — set with updater", () => {
+  it("should update value using updater function", () => {
+    const c = chunk(5);
+    c.set(value => value + 1);
+    expect(c.get()).toBe(6);
+  });
+
+  it("should notify subscribers only if value changes", () => {
+    const c = chunk(5);
+    const subscriber = vi.fn();
+    c.subscribe(subscriber);
+
+    c.set(value => value); // same value — no notification
+    expect(subscriber).not.toHaveBeenCalled();
+
+    c.set(value => value + 1);
+    expect(subscriber).toHaveBeenCalledWith(6);
+    expect(subscriber).toHaveBeenCalledTimes(1);
+  });
+
+  it("should handle complex update logic", () => {
+    const c = chunk(5);
+    c.set(value => value > 3 ? value * 2 : value + 1);
+    expect(c.get()).toBe(10);
+  });
+
+  it("should maintain type safety with objects", () => {
+    interface User { name: string; age: number; }
+
+    const c = chunk<User>({ name: "John", age: 30 });
+    c.set(user => ({ ...user, age: user.age + 1 }));
+
+    expect(c.get().age).toBe(31);
+    expect(c.get().name).toBe("John");
+  });
+});
+
+
+describe("chunk — peek", () => {
+  it("should return current value", () => {
+    const c = chunk(5);
+    expect(c.peek()).toBe(5);
+
+    c.set(10);
+    expect(c.peek()).toBe(10);
+  });
+
+  it("should not trigger subscribers", () => {
+    const c = chunk(5);
+    const callback = vi.fn();
+    c.subscribe(callback);
+
+    c.peek();
+    expect(callback).toHaveBeenCalledTimes(0);
+
+    c.set(10);
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(10);
+  });
+
+  it("should not register as a tracked dependency", () => {
+    const c = chunk(1);
+    const [_, deps] = trackDependencies(() => {
+      c.peek();
+      return null;
+    });
+    expect(deps).toHaveLength(0);
+  });
+
+  it("should register as a tracked dependency when using get", () => {
+    const c = chunk(1);
+    const [_, deps] = trackDependencies(() => {
+      c.get();
+      return null;
+    });
+    expect(deps).toHaveLength(1);
+    expect(deps[0]).toBe(c);
+  });
+});
+
+
+describe("chunk — derive", () => {
+  it("should create a derived chunk with the correct initial value", () => {
+    const count = chunk(5);
+    const doubled = count.derive(v => v * 2);
+
+    expect(count.get()).toBe(5);
+    expect(doubled.get()).toBe(10);
+  });
+
+  it("should update derived chunk when source changes", () => {
+    const count = chunk(5);
+    const doubled = count.derive(v => v * 2);
+
+    const countSpy = vi.fn();
+    const doubledSpy = vi.fn();
+
+    count.subscribe(countSpy);
+    doubled.subscribe(doubledSpy);
+
+    expect(countSpy).toHaveBeenCalledTimes(0);
+    expect(doubledSpy).toHaveBeenCalledTimes(0);
+
+    count.set(10);
+    expect(count.get()).toBe(10);
+    expect(doubled.get()).toBe(20);
+    expect(countSpy).toHaveBeenCalledWith(10);
+    expect(doubledSpy).toHaveBeenCalledWith(20);
+  });
+
+  it("should not update derived chunk if source value does not change", () => {
+    const count = chunk(5);
+    const doubled = count.derive(v => v * 2);
+
+    const doubledSpy = vi.fn();
+    doubled.subscribe(doubledSpy);
+
+    count.set(5); // same value
+    expect(doubledSpy).toHaveBeenCalledTimes(0);
+  });
+
+  it("should return a ReadOnlyChunk — no set or reset", () => {
+    const c = chunk({ name: "John" });
+    const derived = c.derive(v => v.name);
+
+    // @ts-ignore
+    expect(derived.set).toBeUndefined();
+    // @ts-ignore
+    expect(derived.reset).toBeUndefined();
+  });
+
+  it("should support chained derivation", () => {
+    const count = chunk(2);
+    const doubled = count.derive(v => v * 2);
+    const quadrupled = doubled.derive(v => v * 2);
+
+    expect(quadrupled.get()).toBe(8);
+
+    count.set(3);
+    expect(doubled.get()).toBe(6);
+    expect(quadrupled.get()).toBe(12);
+  });
+
+  it("should clean up source subscription on derived chunk destroy", () => {
+    const source = chunk({ name: "John" });
+    const derived = source.derive(v => v.name);
+
+    const callback = vi.fn();
+    derived.subscribe(callback);
+
+    derived.destroy();
+    source.set({ name: "Jane" });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("chunk — destroy", () => {
+  const countChunk = chunk(0);
+  const anotherChunk = chunk(0);
+  const countCallback = vi.fn();
+  const anotherCallback = vi.fn();
+
+  beforeEach(() => {
+    countCallback.mockClear();
+    anotherCallback.mockClear();
+  });
+
+  it("should stop notifying subscribers after destroy", () => {
+    const unsub1 = countChunk.subscribe(countCallback);
+    const unsub2 = anotherChunk.subscribe(anotherCallback);
+
+    expect(countCallback).toHaveBeenCalledTimes(0);
+    expect(anotherCallback).toHaveBeenCalledTimes(0);
+
+    unsub1();
+    unsub2();
+
+    countChunk.destroy();
+    anotherChunk.destroy();
+
+    countChunk.set(30);
+    anotherChunk.set(40);
+
+    expect(countCallback).toHaveBeenCalledTimes(0);
+    expect(anotherCallback).toHaveBeenCalledTimes(0);
+  });
+
+  it("should reset to initial value after destroy", () => {
+    countChunk.set(10);
+    anotherChunk.set(20);
+
+    countChunk.destroy();
+    anotherChunk.destroy();
+
+    const newCountCb = vi.fn();
+    const newAnotherCb = vi.fn();
+
+    const unsub1 = countChunk.subscribe(newCountCb);
+    const unsub2 = anotherChunk.subscribe(newAnotherCb);
+
+    expect(newCountCb).toHaveBeenCalledTimes(0);
+    expect(newAnotherCb).toHaveBeenCalledTimes(0);
+
+    expect(countChunk.get()).toBe(0);
+    expect(anotherChunk.get()).toBe(0);
+
+    unsub1();
+    unsub2();
+  });
+
+  afterAll(() => {
+    countChunk.destroy();
+    anotherChunk.destroy();
+  });
+});
+
+
+describe("chunk — batch", () => {
+  it("should not notify on same primitive value", () => {
+    const c = chunk(1);
+    const callback = vi.fn();
+    c.subscribe(callback);
+
+    batch(() => { c.set(1); });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("should notify once on primitive change inside batch", () => {
+    const c = chunk(1);
+    const callback = vi.fn();
+    c.subscribe(callback);
+
+    batch(() => { c.set(2); });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenLastCalledWith(2);
+  });
+
+  it("should notify once for multiple updates inside a batch", () => {
+    const c = chunk(0);
+    const callback = vi.fn();
+    c.subscribe(callback);
+
+    batch(() => {
+      c.set(1);
+      c.set(2);
+      c.set(3);
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenLastCalledWith(3);
+  });
+
+  it("should notify on shallow different objects inside batch", () => {
+    const c = chunk({ a: 1 });
+    const callback = vi.fn();
+    c.subscribe(callback);
+
+    batch(() => { c.set({ a: 2 }); });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenLastCalledWith({ a: 2 });
+  });
+
+  it("should batch updates across multiple chunks", () => {
+    const c1 = chunk(0);
+    const c2 = chunk(0);
+    const cb1 = vi.fn();
+    const cb2 = vi.fn();
+
+    c1.subscribe(cb1);
+    c2.subscribe(cb2);
+
+    batch(() => {
+      c1.set(1);
+      c2.set(2);
+    });
+
+    expect(cb1).toHaveBeenCalledTimes(1);
+    expect(cb2).toHaveBeenCalledTimes(1);
+    expect(cb1).toHaveBeenCalledWith(1);
+    expect(cb2).toHaveBeenCalledWith(2);
+  });
+
+  it("should handle nested batch calls correctly", () => {
+    const c = chunk(0);
+    const callback = vi.fn();
+    c.subscribe(callback);
+
+    batch(() => {
+      batch(() => {
+        c.set(1);
+        c.set(2);
+      });
+      c.set(3);
+    });
+
+    // Outer batch should fire once with final value
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(3);
   });
 });
