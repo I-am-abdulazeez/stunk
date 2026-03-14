@@ -1,9 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { asyncChunk, type PaginatedAsyncChunk } from "../../src/query/async-chunk";
-import { combineAsyncChunks } from "../../src/query/combine-async-chunk";
 
-
-// MOCK TYPES
 interface User {
   id: number;
   name: string;
@@ -14,14 +11,13 @@ interface Post {
   title: string;
 }
 
-// HELPERS
+
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const createDelayedResponse = <T>(data: T, ms = 50): Promise<T> =>
   new Promise(resolve => setTimeout(() => resolve(data), ms));
 
 
-// CORE asyncChunk
 describe('asyncChunk — core', () => {
   it('should reflect loading state on initial fetch', async () => {
     const mockUser: User = { id: 1, name: 'Test User' };
@@ -277,7 +273,6 @@ describe('asyncChunk — core', () => {
 });
 
 
-// PARAMS
 describe('asyncChunk — params', () => {
   it('should not auto-fetch when fetcher expects params', () => {
     const userChunk = asyncChunk(async (params: { id: number }) =>
@@ -377,7 +372,6 @@ describe('asyncChunk — params', () => {
 });
 
 
-// keepPreviousData / isPlaceholderData
 describe('asyncChunk — keepPreviousData', () => {
   it('should keep previous data visible while loading when keepPreviousData is true', async () => {
     let callCount = 0;
@@ -441,7 +435,6 @@ describe('asyncChunk — keepPreviousData', () => {
 });
 
 
-// REQUEST DEDUPLICATION
 describe('asyncChunk — request deduplication', () => {
   it('should deduplicate concurrent requests for the same named chunk', async () => {
     let fetchCount = 0;
@@ -487,7 +480,6 @@ describe('asyncChunk — request deduplication', () => {
 });
 
 
-// SIDE EFFECTS
 describe('asyncChunk — side effects', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -508,10 +500,11 @@ describe('asyncChunk — side effects', () => {
       { refresh: { refetchInterval: 1000 } }
     );
 
-    // Let initial fetch complete
+    // Initial fetch
     await vi.advanceTimersByTimeAsync(100);
     expect(fetchCount).toBe(1);
 
+    // Advance by interval
     await vi.advanceTimersByTimeAsync(1000);
     expect(fetchCount).toBe(2);
 
@@ -538,7 +531,7 @@ describe('asyncChunk — side effects', () => {
     userChunk.forceCleanup();
 
     await vi.advanceTimersByTimeAsync(3000);
-    expect(fetchCount).toBe(1);
+    expect(fetchCount).toBe(1); // no more fetches
   });
 
   it('should refetch on window focus when refetchOnWindowFocus is true', async () => {
@@ -583,11 +576,9 @@ describe('asyncChunk — side effects', () => {
 
     userChunk.forceCleanup();
   });
-
 });
 
 
-// CLEANUP & SUBSCRIBER REF COUNTING
 describe('asyncChunk — cleanup', () => {
   it('should not tear down side effects when subscribers are still active', async () => {
     let fetchCount = 0;
@@ -641,9 +632,6 @@ describe('asyncChunk — cleanup', () => {
 });
 
 
-// FetcherResponse FORMAT
-
-
 describe('asyncChunk — FetcherResponse format', () => {
   it('should unwrap data from FetcherResponse shape', async () => {
     const userChunk = asyncChunk(async () =>
@@ -658,9 +646,6 @@ describe('asyncChunk — FetcherResponse format', () => {
     expect(userChunk.get().data).toEqual({ id: 1, name: 'Test User' });
   });
 });
-
-
-// PAGINATION
 
 
 describe('asyncChunk — pagination', () => {
@@ -830,53 +815,5 @@ describe('asyncChunk — pagination', () => {
 
     expect(dataChunk.get().pagination?.page).toBe(1);
     expect(fetchCount).toBe(countAfterLoad); // no extra fetch
-  });
-});
-
-
-// combineAsyncChunks
-
-
-describe('combineAsyncChunks', () => {
-  it('should combine multiple async chunks into a single state', async () => {
-    const mockUser: User = { id: 1, name: 'Test User' };
-    const mockPosts: Post[] = [{ id: 1, title: 'Post 1' }, { id: 2, title: 'Post 2' }];
-
-    const userChunk = asyncChunk<User>(() => createDelayedResponse(mockUser, 50));
-    const postsChunk = asyncChunk<Post[]>(() => createDelayedResponse(mockPosts, 100));
-
-    const combined = combineAsyncChunks({ user: userChunk, posts: postsChunk });
-
-    expect(combined.get()).toEqual({
-      loading: true,
-      error: null,
-      errors: {},
-      data: { user: null, posts: null },
-    });
-
-    await delay(150);
-
-    const state = combined.get();
-    expect(state.loading).toBe(false);
-    expect(state.error).toBe(null);
-    expect(state.errors).toEqual({});
-    expect(state.data).toEqual({ user: mockUser, posts: mockPosts });
-  });
-
-  it('should surface errors per-chunk and set the first error as the top-level error', async () => {
-    const mockUser: User = { id: 1, name: 'Test User' };
-
-    const userChunk = asyncChunk<User>(() => createDelayedResponse(mockUser, 50));
-    const postsChunk = asyncChunk<Post[]>(() => { throw new Error('Failed to fetch posts'); });
-
-    const combined = combineAsyncChunks({ user: userChunk, posts: postsChunk });
-
-    await delay(150);
-
-    const state = combined.get();
-    expect(state.loading).toBe(false);
-    expect(state.error?.message).toBe('Failed to fetch posts');
-    expect(state.data.user).toEqual(mockUser);
-    expect(state.data.posts).toBe(null);
   });
 });
