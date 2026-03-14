@@ -69,7 +69,7 @@ export function useInfiniteAsyncChunk<
   hasMoreRef.current = pagination?.hasMore ?? false;
   nextPageRef.current = nextPage;
 
-  // Sentinel ref — generic HTMLElement so it works with any element type
+  // Generic HTMLElement so it works with any element type
   const observerTarget = useRef<HTMLElement>(null);
 
   // Stable intersection observer — never re-registers, reads state via refs
