@@ -44,10 +44,11 @@ describe('select', () => {
     expect(subscriber).toHaveBeenCalledWith('Jane');
   });
 
-  it('should be read-only — no set or reset methods', () => {
+  it('should be read-only — set and reset are not present on the returned object', () => {
     const source = chunk({ name: 'John' });
     const nameSelector = select(source, user => user.name);
 
+    // select() explicitly omits set and reset from the returned object
     // @ts-ignore
     expect(nameSelector.set).toBeUndefined();
     // @ts-ignore
