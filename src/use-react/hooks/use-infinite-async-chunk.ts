@@ -1,92 +1,127 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAsyncChunk, UseAsyncChunkOptions } from './use-async-chunk';
-import { PaginatedAsyncChunk } from '../../core/async-chunk';
+import { InfiniteAsyncChunk } from '../../query/infinite-async-chunk';
 
-interface UseInfiniteAsyncChunkOptions<P extends Record<string, any>>
+export interface UseInfiniteAsyncChunkOptions<P extends Record<string, any>>
   extends Omit<UseAsyncChunkOptions<P>, 'initialParams'> {
-  /** Initial parameters (page and pageSize added automatically) */
+  /** Initial parameters — page and pageSize are managed automatically */
   initialParams?: Omit<Partial<P>, 'page' | 'pageSize'>;
-  /** Enable auto-loading on scroll (default: true) */
+  /** Automatically load next page when sentinel enters viewport (default: true) */
   autoLoad?: boolean;
-  /** Intersection observer threshold (default: 1.0) */
+  /** IntersectionObserver threshold — 0.0 to 1.0 (default: 1.0) */
   threshold?: number;
 }
 
-/**
- * Hook for infinite scroll functionality.
- * Automatically loads more data when scrolling to the bottom.
- */
+export interface UseInfiniteAsyncChunkResult<T, E extends Error, P extends Record<string, any>> {
+  data: T[] | null;
+  loading: boolean;
+  error: E | null;
+  lastFetched?: number;
+  isPlaceholderData: boolean;
+  /** True when fetching a new page while existing data is already loaded */
+  isFetchingMore: boolean;
+  /** True if more pages are available */
+  hasMore: boolean;
+  reload: (params?: Partial<P>) => Promise<void>;
+  refresh: (params?: Partial<P>) => Promise<void>;
+  mutate: (mutator: (currentData: T[] | null) => T[]) => void;
+  reset: () => void;
+  nextPage: () => Promise<void>;
+  prevPage: () => Promise<void>;
+  goToPage: (page: number) => Promise<void>;
+  resetPagination: () => Promise<void>;
+  /** Manually trigger loading the next page */
+  loadMore: () => void;
+  /** Attach this ref to a sentinel element at the bottom of your list */
+  observerTarget: React.RefObject<HTMLElement>;
+}
+
 export function useInfiniteAsyncChunk<
   T,
   E extends Error = Error,
   P extends Record<string, any> = {}
 >(
-  asyncChunk: PaginatedAsyncChunk<T[], E> & {
-    setParams: (params: Partial<P>) => void;
-  },
+  chunk: InfiniteAsyncChunk<T, E, P>,
   options: UseInfiniteAsyncChunkOptions<P> = {}
-) {
+): UseInfiniteAsyncChunkResult<T, E, P> {
   const {
     initialParams,
     autoLoad = true,
     threshold = 1.0,
-    ...restOptions
+    fetchOnMount,
   } = options;
 
-  const observerTarget = useRef<HTMLDivElement>(null);
+  // Pass user params only — never page/pageSize, those are owned by the chunk
+  const result = useAsyncChunk(chunk, {
+    ...(initialParams && { initialParams: initialParams as Partial<P> }),
+    fetchOnMount,
+  });
 
-  const result = useAsyncChunk(asyncChunk, {
-    initialParams: {
-      ...initialParams,
-      page: 1,
-      pageSize: asyncChunk.get().pagination?.pageSize || 10,
-    } as any,
-    ...restOptions,
-  }) as any;
+  const { loading, pagination, nextPage, data, error, isPlaceholderData } = result as any;
 
-  const { loading, pagination, nextPage } = result;
+  // Stable refs for callback values — keeps the observer from re-registering
+  // on every loading/hasMore change
+  const loadingRef = useRef(loading);
+  const hasMoreRef = useRef(pagination?.hasMore ?? false);
+  const nextPageRef = useRef(nextPage);
 
-  // Setup intersection observer for auto-loading
+  loadingRef.current = loading;
+  hasMoreRef.current = pagination?.hasMore ?? false;
+  nextPageRef.current = nextPage;
+
+  // Sentinel ref — generic HTMLElement so it works with any element type
+  const observerTarget = useRef<HTMLElement>(null);
+
+  // Stable intersection observer — never re-registers, reads state via refs
   useEffect(() => {
     if (!autoLoad) return;
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (
           entries[0].isIntersecting &&
-          !loading &&
-          pagination?.hasMore
+          !loadingRef.current &&
+          hasMoreRef.current
         ) {
-          nextPage();
+          nextPageRef.current();
         }
       },
       { threshold }
     );
 
-    const currentTarget = observerTarget.current;
-    if (currentTarget) {
-      observer.observe(currentTarget);
-    }
+    const target = observerTarget.current;
+    if (target) observer.observe(target);
 
     return () => {
-      if (currentTarget) {
-        observer.unobserve(currentTarget);
-      }
+      if (target) observer.unobserve(target);
+      observer.disconnect();
     };
-  }, [loading, pagination?.hasMore, nextPage, autoLoad, threshold]);
+  }, [autoLoad, threshold]); // stable — never re-runs due to loading/hasMore changes
 
-  // Load more function for manual triggering
+  // Manual trigger — consistent with the observer logic
   const loadMore = useCallback(() => {
-    if (!loading && pagination?.hasMore) {
-      nextPage();
+    if (!loadingRef.current && hasMoreRef.current) {
+      nextPageRef.current();
     }
-  }, [loading, pagination?.hasMore, nextPage]);
+  }, []);
+
+  // isFetchingMore: loading a new page while data already exists and pagination
+  // is past page 1 — distinct from the initial load
+  const isFetchingMore =
+    loading &&
+    data !== null &&
+    (data as T[]).length > 0 &&
+    (pagination?.page ?? 1) > 1;
 
   return {
     ...result,
-    loadMore,
-    observerTarget, // Ref to attach to scroll sentinel
+    data: data as T[] | null,
+    error: error as E | null,
+    isPlaceholderData: isPlaceholderData ?? false,
+    isFetchingMore,
     hasMore: pagination?.hasMore ?? false,
-    isFetchingMore: loading && (result.data?.length ?? 0) > 0,
-  };
+    loadMore,
+    observerTarget,
+  } as UseInfiniteAsyncChunkResult<T, E, P>;
 }
