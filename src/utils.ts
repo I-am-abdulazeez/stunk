@@ -6,7 +6,8 @@ export interface ChunkMeta {
 }
 
 export function isValidChunkValue(value: unknown): boolean {
-  return value !== null;
+  // null is a valid chunk value in v3 (undefined is not)
+  return value !== undefined;
 }
 
 export function isValidChunk<T>(value: unknown, validateBehavior = false): value is Chunk<T> {
@@ -52,8 +53,13 @@ export function processMiddleware<T>(
   initialValue: T,
   middleware: (Middleware<T> | NamedMiddleware<T>)[]
 ): T {
-  if (initialValue === null) {
-    throw new Error("Value cannot be null.");
+  if (initialValue === undefined) {
+    throw new Error("Value cannot be undefined.");
+  }
+
+  // null is a valid value in v3 — pass it through unchanged if no middleware
+  if (middleware.length === 0) {
+    return initialValue;
   }
 
   let currentValue = initialValue;
@@ -72,7 +78,8 @@ export function processMiddleware<T>(
       // If undefined is returned, stop processing the middleware chain
       if (result === undefined) break;
 
-      // Null values are not allowed
+      // Null returned from middleware is not allowed — middleware must
+      // return a value or undefined to stop the chain
       if (result === null) {
         throw new Error(`Middleware "${middlewareName}" returned null value.`);
       }
@@ -125,7 +132,6 @@ export function shallowEqual<T>(a: T, b: T): boolean {
     return true;
   }
 
-  // For primitive types, return false. Strict equality already handled by initial check
   return false;
 }
 
@@ -141,7 +147,12 @@ export function validateObjectShape<T>(
     return;
   }
 
-  // Both must be objects or both primitives
+  // Allow undefined → T transitions — undefined is used as "not yet set"
+  // (e.g. lastFetched starts as undefined then becomes a number after fetch)
+  if (original === undefined || updated === undefined) {
+    return;
+  }
+
   if (typeof original !== typeof updated) {
     const fullPath = path || 'root';
     console.error(
@@ -151,12 +162,10 @@ export function validateObjectShape<T>(
     return;
   }
 
-  // Only validate if both are objects
   if (typeof original !== 'object' || typeof updated !== 'object') {
     return;
   }
 
-  // Handle array vs object mismatch
   if (Array.isArray(original) !== Array.isArray(updated)) {
     const fullPath = path || 'root';
     console.error(
@@ -167,9 +176,7 @@ export function validateObjectShape<T>(
     return;
   }
 
-  // Validate arrays
   if (Array.isArray(original) && Array.isArray(updated)) {
-    // Only validate if original has items and they're objects
     if (original.length > 0 && typeof original[0] === 'object') {
       for (let i = 0; i < updated.length; i++) {
         validateObjectShape(
@@ -183,11 +190,9 @@ export function validateObjectShape<T>(
     return;
   }
 
-  // Validate objects
   const originalKeys = Object.keys(original as object);
   const updatedKeys = Object.keys(updated as object);
 
-  // Check for extra keys
   const extraKeys = updatedKeys.filter(key => !originalKeys.includes(key));
   if (extraKeys.length > 0) {
     const fullPath = path || 'root';
@@ -198,7 +203,6 @@ export function validateObjectShape<T>(
     console.error('Received keys:', updatedKeys);
   }
 
-  // Check for missing keys
   if (checkMissing) {
     const missingKeys = originalKeys.filter(key => !updatedKeys.includes(key));
     if (missingKeys.length > 0) {
@@ -209,12 +213,15 @@ export function validateObjectShape<T>(
     }
   }
 
-  // Recurse into common keys
   for (const key of originalKeys) {
     const originalValue = (original as any)[key];
     const updatedValue = (updated as any)[key];
 
-    // Check primitive type changes
+    // Skip undefined → T type checks — intentional "not yet set" pattern
+    if (originalValue === undefined || updatedValue === undefined) {
+      continue;
+    }
+
     if (checkTypes &&
       typeof originalValue !== 'object' &&
       typeof originalValue !== typeof updatedValue) {
@@ -224,7 +231,6 @@ export function validateObjectShape<T>(
       );
     }
 
-    // Recurse for nested objects
     validateObjectShape(
       originalValue,
       updatedValue,
