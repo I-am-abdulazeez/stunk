@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { chunk } from "../../src/core/core";
-import { history } from "../../src/middleware/history";
+import { history } from "../../src/middleware";
 
 describe('Chunk with History', () => {
   it('should maintain history of changes', () => {
