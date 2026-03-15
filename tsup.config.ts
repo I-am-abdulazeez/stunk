@@ -1,6 +1,7 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig([
+  // Main bundle — core, utilities, types
   {
     entry: ['src/index.ts'],
     format: ['esm', 'cjs'],
@@ -13,14 +14,15 @@ export default defineConfig([
     splitting: false,
     target: 'es2020',
     define: {
-      __DEV__: 'false', // Production build
+      __DEV__: "process.env.NODE_ENV !== 'production'",
     },
   },
-  // Framework-specific entries
+  // Subpath entries — middleware, query, react, vue
   {
     entry: {
       'middleware/index': 'src/middleware/index.ts',
       'use-react/index': 'src/use-react/index.ts',
+      'query/index': 'src/query/index.ts',
       // 'use-vue/index': 'src/use-vue/index.ts',
     },
     format: ['esm'],
@@ -30,9 +32,9 @@ export default defineConfig([
     outDir: 'dist',
     treeshake: true,
     target: 'es2020',
-    external: ['react', 'vue'], // Don't bundle peer dependencies
+    external: ['react', 'vue'],
     define: {
-      __DEV__: 'true',
+      __DEV__: "process.env.NODE_ENV !== 'production'",
     },
   }
 ])
