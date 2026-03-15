@@ -38,6 +38,10 @@
       "types": "./dist/middleware/index.d.ts",
       "import": "./dist/middleware/index.js"
     },
+    "./query": {
+      "types": "./dist/query/index.d.ts",
+      "import": "./dist/query/index.js"
+    },
     "./react": {
       "types": "./dist/use-react/index.d.ts",
       "import": "./dist/use-react/index.js"
