@@ -9,14 +9,19 @@ export interface PersistOptions<T> {
   serialize?: (value: T) => string;
   /** Deserialize string to value (default: JSON.parse). */
   deserialize?: (value: string) => T;
-  /** Called on load/save errors. */
+  /** Called on load/save errors and type mismatches. */
   onError?: (error: Error, operation: 'load' | 'save') => void;
+}
+
+export interface PersistedChunk<T> extends Chunk<T> {
+  /** Remove the persisted key from storage without destroying the chunk. */
+  clearStorage: () => void;
 }
 
 export function persist<T>(
   baseChunk: Chunk<T>,
   options: PersistOptions<T>
-): Chunk<T> {
+): PersistedChunk<T> {
   const {
     key,
     serialize = JSON.stringify,
@@ -24,34 +29,42 @@ export function persist<T>(
     onError,
   } = options;
 
-  // Check if storage was explicitly provided
+  // Use explicitly provided storage, or fall back to localStorage in browser
   const storage = 'storage' in options
     ? options.storage
     : (typeof window !== 'undefined' ? localStorage : undefined);
 
-  // Check if storage is available (SSR safety)
   if (!storage) {
     console.warn(`persist: Storage not available for key "${key}". Persistence disabled.`);
-    return baseChunk;
+    return {
+      ...baseChunk,
+      clearStorage: () => { },
+    };
   }
 
   const initialValue = baseChunk.get();
-  let isInitializing = true;
 
+  // Load persisted value on init
   try {
     const savedData = storage.getItem(key);
     if (savedData !== null) {
       const parsed = deserialize(savedData);
 
       const bothNonNull = parsed !== null && initialValue !== null;
-      const typesMismatch = bothNonNull && typeof parsed !== typeof initialValue;
 
-      if (typesMismatch) {
-        console.warn(
-          `persist: Type mismatch for "${key}". ` +
-          `Expected ${typeof initialValue}, got ${typeof parsed}. ` +
-          `Using initial value.`
-        );
+      // Check for type mismatch — covers object vs array distinction too
+      const typeMismatch = bothNonNull && (
+        typeof parsed !== typeof initialValue ||
+        Array.isArray(parsed) !== Array.isArray(initialValue)
+      );
+
+      if (typeMismatch) {
+        const msg = `persist: Type mismatch for "${key}". ` +
+          `Expected ${Array.isArray(initialValue) ? 'array' : typeof initialValue}, ` +
+          `got ${Array.isArray(parsed) ? 'array' : typeof parsed}. ` +
+          `Using initial value.`;
+        console.warn(msg);
+        onError?.(new Error(msg), 'load');
       } else {
         baseChunk.set(parsed);
       }
@@ -62,14 +75,11 @@ export function persist<T>(
     onError?.(err, 'load');
   }
 
-  isInitializing = false;
-
+  // Subscribe after init — no isInitializing flag needed since
+  // subscribe is registered after the initial load block completes
   const unsubscribe = baseChunk.subscribe((newValue) => {
-    if (isInitializing) return;
-
     try {
-      const serialized = serialize(newValue);
-      storage.setItem(key, serialized);
+      storage.setItem(key, serialize(newValue));
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       console.error(`persist: Failed to save state for "${key}":`, err);
@@ -77,7 +87,7 @@ export function persist<T>(
     }
   });
 
-  const persistedChunk: Chunk<T> = {
+  const persistedChunk: PersistedChunk<T> = {
     ...baseChunk,
 
     get: () => baseChunk.get(),
@@ -90,7 +100,17 @@ export function persist<T>(
     destroy: () => {
       unsubscribe();
       baseChunk.destroy();
-    }
+    },
+
+    clearStorage: () => {
+      try {
+        storage.removeItem(key);
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error(`persist: Failed to clear storage for "${key}":`, err);
+        onError?.(err, 'save');
+      }
+    },
   };
 
   return persistedChunk;
