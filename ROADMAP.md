@@ -3,6 +3,7 @@
 > **Current Status**: 110+ GitHub stars | 2.95kb gzipped (core + React) | Production-ready
 
 ## ✅ Recently Completed (Excellent Progress!)
+
 - **4 comparison articles** (Stunk vs Zustand/Jotai) - Deep dive content ✓
 - **10+ showcase applications** - Real-world usage demonstrations ✓
 - **110+ GitHub stars** - Strong community foundation ✓
@@ -13,9 +14,11 @@
 ## Phase 1: Core Experience Enhancement (Priority: High)
 
 ### 🔥 Computed Function Redesign - **6-8 weeks**
-**Target: Make computed functions more intuitive**
+
+#### Target: Make computed functions more intuitive
 
 **Current API:**
+
 ```javascript
 const fullNameChunk = computed(
   [firstNameChunk, lastNameChunk, ageChunk], 
@@ -27,6 +30,7 @@ const fullNameChunk = computed(
 ```
 
 **New API:**
+
 ```javascript  
 const fullNameChunk = computed(() => ({
   fullName: `${firstNameChunk.get()} ${lastNameChunk.get()}`,
@@ -35,12 +39,14 @@ const fullNameChunk = computed(() => ({
 ```
 
 **Implementation Strategy:**
+
 - Build dependency tracking system that detects `.get()` calls during execution
 - Use function wrapping to intercept chunk access
 - Maintain backward compatibility with current API
 - Add automatic cleanup when dependencies change
 
 **Benefits:**
+
 - More intuitive and readable
 - No dependency arrays to maintain
 - Automatic dependency detection
@@ -53,18 +59,22 @@ const fullNameChunk = computed(() => ({
 ## Phase 2: Framework Expansion (Priority: High)
 
 ### ✅ React Integration (Complete)
+
 - All hooks implemented and battle-tested
 - Bundle size optimized (included in 2.95kb total)
 
 ### 🚧 Vue Composables Completion - **4-6 weeks** (can overlap with computed work)
-**Target: Full Vue 3 Composition API support**
+
+#### Target: Full Vue 3 Composition API support**
 
 **Timeline:**
+
 - **Week 1-2:** Core composables (`useChunk`, `useComputed`, `useAsyncChunk`)
 - **Week 3-4:** Advanced composables (`useChunkProperty`, `useChunkValues`), SSR compatibility
 - **Week 5-6:** Testing, documentation, Vue ecosystem validation
 
 **Deliverables:**
+
 - `useChunk` - Core chunk binding with Vue reactivity
 - `useComputed` - Computed values integrated with Vue's system
 - `useAsyncChunk` - Async state management with Vue lifecycle
@@ -73,11 +83,13 @@ const fullNameChunk = computed(() => ({
 - Optional Options API helpers
 
 ### 📋 Svelte Integration - **3-4 weeks** *(after Vue completion)*
+
 - **Svelte stores integration** - Native stores compatibility
 - Svelte stores are simpler than Vue reactivity
 - Can leverage lessons learned from Vue integration
 
 ### 📋 Future Framework Support *(Long-term)*
+
 - **Angular** - Services and new Signals compatibility  
 - **Solid.js** - Signal interoperability
 
@@ -86,38 +98,47 @@ const fullNameChunk = computed(() => ({
 ## Phase 3: Growth & Adoption (Priority: High - Ongoing)
 
 ### 📈 Performance Validation - **2-3 weeks** *(can start immediately)*
-**Target: Quantify competitive advantages**
+
+#### Target: Quantify competitive advantages
 
 **Timeline:**
+
 - **Week 1:** Benchmark suite setup
 - **Week 2-3:** Performance comparison documentation and analysis
 
 **Deliverables:**
+
 - **Benchmark against competitors** (Zustand, Jotai, Valtio, Pinia)
 - Memory usage analysis
 - React DevTools profiling
 - Real-world performance case studies
 
 ### 🚀 Community Building - **Ongoing**
+
 **Revised Realistic Targets:**
+
 - **Month 8: 250-300+ stars** (doubling current base)
 - **Month 10: 500+ stars** (more sustainable growth)
 - **Month 12: 750+ stars** (established library status)
 
 **Leverage Existing Assets:**
+
 - Promote existing 4 comparison articles across platforms
 - Developer outreach and content creation
 - Conference talks and presentations
 - Open source contributions and collaboration
 
 ### 📚 Documentation Enhancement - **3-4 weeks**
+
 **Timeline:**
+
 - **Week 1-2:** **Migration guides** from Zustand, Jotai, Pinia, Vuex (build from existing comparison articles)
 - **Week 1:** **Performance optimization guide**
 - **Week 2:** **Advanced patterns** and real-world examples  
 - **Week 3:** Interactive playground integration
 
 **Status:**
+
 - ✅ Core documentation complete
 - 🔄 **Expand best practices** section
 
@@ -126,19 +147,23 @@ const fullNameChunk = computed(() => ({
 ## Phase 4: Developer Experience (Priority: Medium - Months 6-8)
 
 ### 🛠 DevTools Integration - **Research & Planning Phase**
+
 **Don't commit to implementation timeline yet - focus on requirements:**
+
 - Browser extension scope and requirements
 - Time-travel debugging capabilities research
 - Dependency graph visualization planning
 - Performance monitoring dashboard specification
 
 ### ✅ Testing Infrastructure (Complete)
+
 - Mock chunk implementations ✓
 - Test helpers for async chunks ✓
 - Snapshot testing support ✓
 - Comprehensive test coverage ✓
 
 ### 🎯 Bundle Optimization (Excellent Progress)
+
 - **Current: 2.95kb gzipped** (core + React) 🎯
 - Tree-shaking improvements for Vue version
 - Separate builds for different features
@@ -149,6 +174,7 @@ const fullNameChunk = computed(() => ({
 ## Phase 5: Advanced Features (Priority: Medium - Months 8-12)
 
 ### 🔄 Power User Features
+
 - **Lazy chunks** - Computed values that only calculate when accessed
 - **Chunk collections** - Arrays/Maps of chunks with bulk operations
 - **Transactions** - Multi-chunk atomic updates with rollback
@@ -156,6 +182,7 @@ const fullNameChunk = computed(() => ({
 - **Chunk debugging** - Enhanced error messages and stack traces
 
 ### 🔌 Plugin Ecosystem
+
 - Middleware marketplace/registry
 - Common plugins (advanced logging, persistence strategies, validation)
 - Plugin development toolkit and documentation
@@ -165,12 +192,14 @@ const fullNameChunk = computed(() => ({
 ## Phase 6: Ecosystem Maturity (Priority: Low - Year 2+)
 
 ### 🌐 Developer Tools
+
 - ESLint rules for Stunk best practices
 - TypeScript strict mode utilities
 - Code generation and scaffolding tools
 - VS Code extension with snippets and IntelliSense
 
 ### 📦 Strategic Integrations
+
 - Form libraries integration (React Hook Form, Formik, VeeValidate)
 - Router state management patterns
 - WebSocket/real-time data synchronization
@@ -181,18 +210,22 @@ const fullNameChunk = computed(() => ({
 ## Immediate Next 12 Weeks Priority Queue
 
 ### **Weeks 1-2:** Performance benchmarking *(easy win, builds on existing work)*
+
 - Leverage existing comparison articles
 - Create quantified performance documentation
 
 ### **Weeks 1-8:** Computed function redesign *(parallel track, highest impact)*
+
 - Most complex feature, needs dedicated focus
 - Will generate significant buzz when shipped
 
 ### **Weeks 3-8:** Vue composables completion *(parallel to computed work)*
+
 - Expands addressable market
 - Can work simultaneously with computed redesign
 
 ### **Weeks 9-12:** Documentation enhancement + Svelte integration planning
+
 - Migration guides building from existing comparison content
 - Begin Svelte integration research
 
@@ -201,6 +234,7 @@ const fullNameChunk = computed(() => ({
 ## Revised Success Metrics & Milestones
 
 ### Technical Excellence ✅
+
 - **Bundle size: 2.95kb gzipped** (beating target!) ✓
 - **Comprehensive testing** ✓
 - **4 comparison articles published** ✓
@@ -209,6 +243,7 @@ const fullNameChunk = computed(() => ({
 - Performance within 5% of leading alternatives
 
 ### Community Growth 🚀
+
 - **Current: 110+ GitHub stars** ✓
 - **Month 8: 250-300+ stars** (realistic doubling)
 - **Month 10: 500+ stars** (sustainable growth)
@@ -217,6 +252,7 @@ const fullNameChunk = computed(() => ({
 - Framework-specific adoption metrics
 
 ### Developer Experience
+
 - Zero breaking changes in minor versions
 - Excellent TypeScript support
 - Clear upgrade and migration paths
@@ -226,9 +262,10 @@ const fullNameChunk = computed(() => ({
 
 ## Long-term Vision (12-18 months)
 
-**Stunk as the lightweight, universal state management solution**
+### Stunk as the lightweight, universal state management solution
 
 Position Stunk as the go-to choice for:
+
 - **Performance-conscious teams** who need small bundles
 - **Multi-framework organizations** requiring consistency
 - **Library authors** building framework-agnostic tools
@@ -236,6 +273,7 @@ Position Stunk as the go-to choice for:
 - **Modern applications** that need async-first state management
 
 ### Key Differentiators
+
 - **Smallest bundle** with most features
 - **Framework agnostic** core with first-class integrations
 - **Async-first** design for modern applications
