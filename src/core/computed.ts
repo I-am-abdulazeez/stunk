@@ -9,8 +9,35 @@ export interface Computed<T> extends ReadOnlyChunk<T> {
 }
 
 /**
- * Create a computed value that automatically tracks dependencies.
- * Dependencies are tracked by monitoring which chunks call .get() during execution.
+ * Creates a derived value that automatically tracks its dependencies and
+ * recomputes lazily when any of them change.
+ *
+ * Dependencies are discovered automatically — any chunk whose `.get()` is
+ * called inside `computeFn` is tracked. Use `.peek()` inside the function
+ * to read a value without tracking it as a dependency.
+ *
+ * The computed value is cached and only recalculated when a dependency
+ * changes and the value is accessed (lazy) or when active subscribers exist
+ * (eager). Object values are compared with shallow equality to prevent
+ * unnecessary subscriber notifications.
+ *
+ * @param computeFn - A pure function that derives the computed value.
+ * @returns A read-only `Computed<T>` with `isDirty()`, `recompute()`, `derive()`, `subscribe()`, `peek()`, and `destroy()`.
+ *
+ * @example
+ * const price = chunk(100);
+ * const qty = chunk(3);
+ *
+ * const total = computed(() => price.get() * qty.get());
+ * total.get(); // 300
+ *
+ * price.set(200);
+ * total.get(); // 600
+ *
+ * @example
+ * // peek() does not create a dependency
+ * const taxRate = chunk(0.1);
+ * const subtotal = computed(() => price.get() * qty.peek()); // qty not tracked
  */
 export function computed<T>(computeFn: () => T): Computed<T> {
   const [initialValue, initialDeps] = trackDependencies(computeFn);

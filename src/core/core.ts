@@ -56,7 +56,20 @@ export function trackDependencies<T>(fn: () => T): [T, Chunk<any>[]] {
 }
 
 /**
- * Register that a chunk is being accessed (called internally by chunk.get())
+ * Executes a function while tracking which chunks call `.get()` inside it.
+ * Used internally by `computed()` to discover dependencies automatically.
+ *
+ * @param fn - The function to execute and track.
+ * @returns A tuple of `[result, dependencies]` where `dependencies` is the
+ * list of chunks whose `.get()` was called during execution.
+ *
+ * @example
+ * const a = chunk(1);
+ * const b = chunk(2);
+ *
+ * const [result, deps] = trackDependencies(() => a.get() + b.get());
+ * // result → 3
+ * // deps   → [a, b]
  */
 function trackChunkAccess(chunk: Chunk<any>) {
   if (activeEffect) {
@@ -71,6 +84,29 @@ const dirtyChunks = new Set<number>();
 const chunkRegistry = new Map<number, { notify: () => void }>();
 let chunkIdCounter = 0;
 
+
+/**
+ * Groups multiple chunk updates into a single notification pass.
+ *
+ * Without batching, each `set()` call notifies subscribers immediately.
+ * Inside a `batch()`, all updates are collected and subscribers are notified
+ * once after the callback completes — even if multiple chunks were updated.
+ *
+ * Batches can be nested safely. Notifications only flush when the outermost
+ * batch completes.
+ *
+ * @param callback - A function containing one or more chunk `set()` calls.
+ *
+ * @example
+ * const x = chunk(0);
+ * const y = chunk(0);
+ *
+ * batch(() => {
+ *   x.set(1);
+ *   y.set(2);
+ * });
+ * // Subscribers of x and y are each notified once, not twice.
+ */
 export function batch(callback: () => void) {
   const wasBatchingBefore = isBatching;
   isBatching = true;
@@ -90,7 +126,37 @@ export function batch(callback: () => void) {
 }
 
 
-// CHUNK IMPLEMENTATION
+/**
+ * Creates a reactive state unit — the core primitive of Stunk.
+ *
+ * A chunk holds a single value and notifies all subscribers whenever that
+ * value changes. Values are compared by reference (`===`) for primitives and
+ * by the result of middleware processing for objects — so setting the same
+ * value twice does not trigger subscribers.
+ *
+ * @param initialValue - The starting value. Cannot be `undefined`.
+ * @param config - Optional configuration for naming, middleware, and strict mode.
+ * @returns A `Chunk<T>` with `get()`, `set()`, `peek()`, `subscribe()`, `derive()`, `reset()`, and `destroy()`.
+ *
+ * @throws If `initialValue` is `undefined`.
+ *
+ * @example
+ * const count = chunk(0);
+ * count.get();        // 0
+ * count.set(1);       // subscribers notified
+ * count.set(n => n + 1); // updater function
+ * count.reset();      // back to 0
+ *
+ * @example
+ * // Named chunk with strict mode — throws on unknown keys in dev
+ * const user = chunk({ name: 'Alice', age: 30 }, { name: 'user', strict: true });
+ *
+ * @example
+ * // With middleware
+ * const positive = chunk(0, {
+ *   middleware: [nonNegativeValidator]
+ * });
+ */
 export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T> {
   const chunkId = chunkIdCounter++;
   const chunkName = __DEV__
