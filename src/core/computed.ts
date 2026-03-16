@@ -32,16 +32,12 @@ export function computed<T>(computeFn: () => T): Computed<T> {
     // Check if dependencies have changed
     if (!shallowEqual(newDeps, dependencies)) {
       unsubs.forEach(unsub => unsub());
-
       // Subscribe to new dependencies
       unsubs = newDeps.map(dep =>
         dep.subscribe(() => {
           isDirty = true;
-
           // Recompute eagerly only if we have subscribers
-          if (subscriberCount > 0) {
-            _recompute();
-          }
+          if (subscriberCount > 0) _recompute();
         })
       );
       dependencies = newDeps;
@@ -62,15 +58,15 @@ export function computed<T>(computeFn: () => T): Computed<T> {
   unsubs = dependencies.map(dep =>
     dep.subscribe(() => {
       isDirty = true;
-
       // Recompute eagerly if we have subscribers
-      if (subscriberCount > 0) {
-        _recompute();
-      }
+      if (subscriberCount > 0) _recompute();
     })
   );
 
-  return {
+  // Forward-declare so derive() can reference the lazy .get()
+  let computedInstance: Computed<T>;
+
+  computedInstance = {
     get: () => {
       if (isDirty) _recompute();
       return computedChunk.get();
@@ -85,8 +81,10 @@ export function computed<T>(computeFn: () => T): Computed<T> {
         unsubscribe();
       };
     },
+    // derive uses computedInstance.get() so it always reads the fresh,
+    // lazily-recomputed value rather than the potentially stale computedChunk
     derive: <D>(fn: (value: T) => D) => {
-      return computed(() => fn(computedChunk.get()));
+      return computed(() => fn(computedInstance.get()));
     },
     recompute: () => {
       isDirty = true;
@@ -98,5 +96,7 @@ export function computed<T>(computeFn: () => T): Computed<T> {
       computedChunk.destroy();
       subscriberCount = 0;
     },
-  };
+  }
+
+  return computedInstance
 }
