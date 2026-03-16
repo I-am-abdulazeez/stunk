@@ -1,283 +1,185 @@
 # Stunk - Development Roadmap 🚧
 
-> **Current Status**: 110+ GitHub stars | 2.95kb gzipped (core + React) | Production-ready
-
-## ✅ Recently Completed (Excellent Progress!)
-
-- **4 comparison articles** (Stunk vs Zustand/Jotai) - Deep dive content ✓
-- **10+ showcase applications** - Real-world usage demonstrations ✓
-- **110+ GitHub stars** - Strong community foundation ✓
-- **2.95kb gzipped bundle** - Industry-leading bundle size ✓
+> **Current Status**: 110+ GitHub stars | 3.32kb gzipped (core + React + Query) | v3.0.0-alpha.2
 
 ---
 
-## Phase 1: Core Experience Enhancement (Priority: High)
+## ✅ v3.0.0 — Shipped (alpha.2)
 
-### 🔥 Computed Function Redesign - **6-8 weeks**
+### Core
 
-#### Target: Make computed functions more intuitive
+- `peek()` — read without tracking dependencies
+- `strict` mode — throws or warns on unknown keys in `set()` in dev
+- `null` as a valid chunk value (was forbidden in v2)
+- `ReadOnlyChunk<T>` — `derive()` now returns a proper read-only type
+- `trackDependencies` — exported for building custom reactive primitives
+- `validateObjectShape` — smarter dev warnings, ignores `undefined → T` and `T → null` transitions
+- `batch()` — nested batches, no duplicate notifications, error-safe
 
-**Current API:**
+### Computed (redesigned ✅)
 
-```javascript
-const fullNameChunk = computed(
-  [firstNameChunk, lastNameChunk, ageChunk], 
-  (firstName, lastName, age) => ({
-     fullName: `${firstName} ${lastName}`,
-     isAdult: age >= 18,
-  })
-)
-```
+- Auto dependency tracking via `.get()` calls — no dependency arrays
+- Lazy evaluation with eager recompute when subscribers are active
+- `isDirty()` and `recompute()` for manual control
+- `peek()` does not create dependencies
+- Diamond dependency pattern handled correctly — no double notifications
+- `derive()` freshness fixed — no stale values through derived chains
+- `subscriberCount` ref-counting — no negative counts
 
-**New API:**
+### Query (new subpath `stunk/query` ✅)
 
-```javascript  
-const fullNameChunk = computed(() => ({
-  fullName: `${firstNameChunk.get()} ${lastNameChunk.get()}`,
-  isAdult: ageChunk.get() >= 18,
-}))
-```
+- `asyncChunk` — full async state with loading, error, data, lastFetched
+- `infiniteAsyncChunk` — accumulate mode, infinite scroll ready
+- `combineAsyncChunks` — unified loading/error/data across multiple chunks
+- Request deduplication via `key` option
+- `keepPreviousData` + `isPlaceholderData` — no UI flicker on param changes
+- `onSuccess` / `onError` callbacks
+- `enabled` as boolean or function — dynamic disabling
+- `setParams` with null clearing, `clearParams()`
+- `refetchOnWindowFocus`, `refetchInterval`, `staleTime`, `cacheTime`
+- `forceCleanup()` + ref-counted `cleanup()`
+- Full pagination — `nextPage`, `prevPage`, `goToPage`, `resetPagination`
+- SSR-safe — all `window` access guarded
 
-**Implementation Strategy:**
+### React hooks (updated ✅)
 
-- Build dependency tracking system that detects `.get()` calls during execution
-- Use function wrapping to intercept chunk access
-- Maintain backward compatibility with current API
-- Add automatic cleanup when dependencies change
+- `useAsyncChunk` — single effect, Rules of Hooks compliant, exposes `isPlaceholderData` and `clearParams`
+- `useInfiniteAsyncChunk` — stable `IntersectionObserver`, SSR-safe, correct `isFetchingMore`
 
-**Benefits:**
+### Middleware (updated ✅)
 
-- More intuitive and readable
-- No dependency arrays to maintain
-- Automatic dependency detection
-- Looks like natural JavaScript
+- `history` → renamed, `reset()` now clears history stack, `skipDuplicates: true` vs `'shallow'` distinction fixed
+- `persist` → `clearStorage()` added, `onError` called on type mismatch, array vs object type mismatch detection, dead `isInitializing` flag removed
 
-*Reality check: Dependency tracking is complex - SolidJS and MobX took years to perfect this. Budget extra time for edge cases.*
+### Build & Package
+
+- `stunk/query` subpath export added to `package.json` and `tsup.config.ts`
+- `__DEV__` correctly set per bundle — `false` in core, `true` in subpath entries
+- Total bundle: ~9.57 KB ESM core, query is fully tree-shakeable
+
+### Tests (70+ passing across 9 files)
+
+- `chunk.test.ts` — 31 tests
+- `batch-chunk.test.ts` — 7 tests
+- `select.test.ts` — 21 tests
+- `computed.test.ts` — 28 tests
+- `history.test.ts` — 17 tests
+- `persist.test.ts` — 20 tests
+- `async-chunk.test.ts` — 41 tests
+- `infinite-async-chunk.test.ts` — 21 tests
+- `combine-async-chunks.test.ts` — 8 tests
 
 ---
 
-## Phase 2: Framework Expansion (Priority: High)
+## 🚧 In Progress
 
-### ✅ React Integration (Complete)
+### Docs update for v3 — stunk.dev
 
-- All hooks implemented and battle-tested
-- Bundle size optimized (included in 2.95kb total)
+- All new options documented (`key`, `onSuccess`, `keepPreviousData`, `clearParams`, `forceCleanup`, `strict`, `enabled` as function)
+- v2 docs preserved at `v2.stunk.dev`
+- Changelog updated
 
-### 🚧 Vue Composables Completion - **4-6 weeks** (can overlap with computed work)
+### React hook tests
 
-#### Target: Full Vue 3 Composition API support**
+- `useAsyncChunk` — needs `@testing-library/react` setup
+- `useInfiniteAsyncChunk` — needs `IntersectionObserver` mock
 
-**Timeline:**
+---
 
-- **Week 1-2:** Core composables (`useChunk`, `useComputed`, `useAsyncChunk`)
-- **Week 3-4:** Advanced composables (`useChunkProperty`, `useChunkValues`), SSR compatibility
-- **Week 5-6:** Testing, documentation, Vue ecosystem validation
+## 📋 Planned — v3.0.0 stable
 
-**Deliverables:**
+### Vue composables completion
 
-- `useChunk` - Core chunk binding with Vue reactivity
-- `useComputed` - Computed values integrated with Vue's system
-- `useAsyncChunk` - Async state management with Vue lifecycle
-- `useChunkProperty` - Property-specific subscriptions
+- `useChunk`, `useChunkValue`, `useAsyncChunk` for Vue 3
 - SSR compatibility for Nuxt
-- Optional Options API helpers
+- Re-enable `use-vue/index` in `tsup.config.ts`
 
-### 📋 Svelte Integration - **3-4 weeks** *(after Vue completion)*
+### Middleware tests
 
-- **Svelte stores integration** - Native stores compatibility
-- Svelte stores are simpler than Vue reactivity
-- Can leverage lessons learned from Vue integration
+- `logger` and `nonNegativeValidator` dedicated test file
 
-### 📋 Future Framework Support *(Long-term)*
+### `select` + `computed` docs update
 
-- **Angular** - Services and new Signals compatibility  
-- **Solid.js** - Signal interoperability
+- Document `peek()` dependency tracking behaviour
+- Document `strict` mode
 
 ---
 
-## Phase 3: Growth & Adoption (Priority: High - Ongoing)
+## 📋 Planned — v3.1.0
 
-### 📈 Performance Validation - **2-3 weeks** *(can start immediately)*
+### Svelte integration
 
-#### Target: Quantify competitive advantages
+- Native stores compatibility
+- Leverage lessons from Vue integration
 
-**Timeline:**
+### Performance benchmarks
 
-- **Week 1:** Benchmark suite setup
-- **Week 2-3:** Performance comparison documentation and analysis
+- Benchmark against Zustand, Jotai, Valtio, Pinia
+- Quantify bundle size and runtime advantages
 
-**Deliverables:**
-
-- **Benchmark against competitors** (Zustand, Jotai, Valtio, Pinia)
-- Memory usage analysis
-- React DevTools profiling
-- Real-world performance case studies
-
-### 🚀 Community Building - **Ongoing**
-
-**Revised Realistic Targets:**
-
-- **Month 8: 250-300+ stars** (doubling current base)
-- **Month 10: 500+ stars** (more sustainable growth)
-- **Month 12: 750+ stars** (established library status)
-
-**Leverage Existing Assets:**
-
-- Promote existing 4 comparison articles across platforms
-- Developer outreach and content creation
-- Conference talks and presentations
-- Open source contributions and collaboration
-
-### 📚 Documentation Enhancement - **3-4 weeks**
-
-**Timeline:**
-
-- **Week 1-2:** **Migration guides** from Zustand, Jotai, Pinia, Vuex (build from existing comparison articles)
-- **Week 1:** **Performance optimization guide**
-- **Week 2:** **Advanced patterns** and real-world examples  
-- **Week 3:** Interactive playground integration
-
-**Status:**
-
-- ✅ Core documentation complete
-- 🔄 **Expand best practices** section
-
----
-
-## Phase 4: Developer Experience (Priority: Medium - Months 6-8)
-
-### 🛠 DevTools Integration - **Research & Planning Phase**
-
-**Don't commit to implementation timeline yet - focus on requirements:**
+### DevTools (research phase)
 
 - Browser extension scope and requirements
-- Time-travel debugging capabilities research
-- Dependency graph visualization planning
-- Performance monitoring dashboard specification
-
-### ✅ Testing Infrastructure (Complete)
-
-- Mock chunk implementations ✓
-- Test helpers for async chunks ✓
-- Snapshot testing support ✓
-- Comprehensive test coverage ✓
-
-### 🎯 Bundle Optimization (Excellent Progress)
-
-- **Current: 2.95kb gzipped** (core + React) 🎯
-- Tree-shaking improvements for Vue version
-- Separate builds for different features
-- Micro-library approach exploration
+- Time-travel debugging via `history` middleware
+- Dependency graph visualization
 
 ---
 
-## Phase 5: Advanced Features (Priority: Medium - Months 8-12)
+## 📋 Long-term (v4+)
 
-### 🔄 Power User Features
+### Power user features
 
-- **Lazy chunks** - Computed values that only calculate when accessed
-- **Chunk collections** - Arrays/Maps of chunks with bulk operations
-- **Transactions** - Multi-chunk atomic updates with rollback
-- **Schema validation** - Runtime type checking with TypeScript integration
-- **Chunk debugging** - Enhanced error messages and stack traces
+- Lazy chunks — compute only when accessed
+- Chunk collections — arrays/maps of chunks with bulk operations
+- Transactions — multi-chunk atomic updates with rollback
+- Plugin ecosystem and middleware registry
 
-### 🔌 Plugin Ecosystem
-
-- Middleware marketplace/registry
-- Common plugins (advanced logging, persistence strategies, validation)
-- Plugin development toolkit and documentation
-
----
-
-## Phase 6: Ecosystem Maturity (Priority: Low - Year 2+)
-
-### 🌐 Developer Tools
+### Ecosystem
 
 - ESLint rules for Stunk best practices
-- TypeScript strict mode utilities
-- Code generation and scaffolding tools
-- VS Code extension with snippets and IntelliSense
-
-### 📦 Strategic Integrations
-
-- Form libraries integration (React Hook Form, Formik, VeeValidate)
-- Router state management patterns
-- WebSocket/real-time data synchronization
-- Server-side rendering optimizations
+- VS Code extension with snippets
+- Form library integrations (React Hook Form, Formik)
+- WebSocket / real-time data sync patterns
 
 ---
 
-## Immediate Next 12 Weeks Priority Queue
+## Success Metrics
 
-### **Weeks 1-2:** Performance benchmarking *(easy win, builds on existing work)*
+### Technical ✅
 
-- Leverage existing comparison articles
-- Create quantified performance documentation
+- Bundle size: 3.32kb gzipped (core + React + Query) — on target
+- 70+ tests, all passing
+- Full TypeScript coverage
+- SSR safe across all APIs
 
-### **Weeks 1-8:** Computed function redesign *(parallel track, highest impact)*
+### Community 🚀
 
-- Most complex feature, needs dedicated focus
-- Will generate significant buzz when shipped
+#### GitHub Stars
 
-### **Weeks 3-8:** Vue composables completion *(parallel to computed work)*
+- Current (March 2026): 110+ stars
+- April 25 — conference: 200+ stars (pre-conference push + v3 stable release)
+- May 2026 — post-conference: 400+ stars
+- January 2027 (2 year mark): 1000+ stars
 
-- Expands addressable market
-- Can work simultaneously with computed redesign
+#### NPM Downloads
 
-### **Weeks 9-12:** Documentation enhancement + Svelte integration planning
+- Current weekly: ~278 (278 total, base ~50-80 organic/week)
+- Pre-conference target: 500+ weekly
+- Post-conference target: 1000+ weekly consistently
+- Key milestone: first 0 → 1 dependent (someone building on top of Stunk)
 
-- Migration guides building from existing comparison content
-- Begin Svelte integration research
+#### Actions before April 25
 
----
+- Ship v3 stable — alpha versions don't get organic downloads
+- Update NPM README — first thing people see
+- Investigate what drove the v2.7.1 spike (264 downloads in one week) and replicate it
+- Publish one technical article on the query layer — the key v3 differentiator
+- stunk.dev live with v3 docs before the conference
 
-## Revised Success Metrics & Milestones
+### Key Differentiators (v3)
 
-### Technical Excellence ✅
-
-- **Bundle size: 2.95kb gzipped** (beating target!) ✓
-- **Comprehensive testing** ✓
-- **4 comparison articles published** ✓
-- **2-3 showcase applications** ✓
-- Framework adapters under 1kb additional each
-- Performance within 5% of leading alternatives
-
-### Community Growth 🚀
-
-- **Current: 110+ GitHub stars** ✓
-- **Month 8: 250-300+ stars** (realistic doubling)
-- **Month 10: 500+ stars** (sustainable growth)
-- **Month 12: 750+ stars** (established library)
-- Active contributors and community PRs
-- Framework-specific adoption metrics
-
-### Developer Experience
-
-- Zero breaking changes in minor versions
-- Excellent TypeScript support
-- Clear upgrade and migration paths
-- High developer satisfaction scores
-
----
-
-## Long-term Vision (12-18 months)
-
-### Stunk as the lightweight, universal state management solution
-
-Position Stunk as the go-to choice for:
-
-- **Performance-conscious teams** who need small bundles
-- **Multi-framework organizations** requiring consistency
-- **Library authors** building framework-agnostic tools
-- **Migration projects** moving between state solutions
-- **Modern applications** that need async-first state management
-
-### Key Differentiators
-
-- **Smallest bundle** with most features
-- **Framework agnostic** core with first-class integrations
-- **Async-first** design for modern applications
-- **Developer experience** focused on intuitive APIs
-- **Production proven** with comprehensive testing
-
-The goal is to make Stunk the obvious choice when developers need powerful, lightweight state management that works everywhere.
+- Smallest bundle with async-first query layer built in
+- Framework-agnostic core, first-class React, Vue coming
+- Dev-mode shape validation — unique to Stunk
+- Request deduplication without query keys
+- `peek()` for non-reactive reads — fine-grained control
