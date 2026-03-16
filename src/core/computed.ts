@@ -29,14 +29,12 @@ export function computed<T>(computeFn: () => T): Computed<T> {
 
     const [newValue, newDeps] = trackDependencies(computeFn);
 
-    // Check if dependencies have changed
+    // Re-subscribe if dependencies have changed
     if (!shallowEqual(newDeps, dependencies)) {
       unsubs.forEach(unsub => unsub());
-      // Subscribe to new dependencies
       unsubs = newDeps.map(dep =>
         dep.subscribe(() => {
           isDirty = true;
-          // Recompute eagerly only if we have subscribers
           if (subscriberCount > 0) _recompute();
         })
       );
@@ -58,12 +56,11 @@ export function computed<T>(computeFn: () => T): Computed<T> {
   unsubs = dependencies.map(dep =>
     dep.subscribe(() => {
       isDirty = true;
-      // Recompute eagerly if we have subscribers
       if (subscriberCount > 0) _recompute();
     })
   );
 
-  // Forward-declare so derive() can reference the lazy .get()
+  // Forward-declare so derive() can reference the lazy get()
   let computedInstance: Computed<T>;
 
   computedInstance = {
@@ -71,7 +68,9 @@ export function computed<T>(computeFn: () => T): Computed<T> {
       if (isDirty) _recompute();
       return computedChunk.get();
     },
+
     peek: () => cachedValue,
+
     subscribe: (callback) => {
       const unsubscribe = computedChunk.subscribe(callback);
       subscriberCount++;
@@ -80,22 +79,29 @@ export function computed<T>(computeFn: () => T): Computed<T> {
         unsubscribe();
       };
     },
-    // derive uses computedInstance.get() so it always reads the fresh,
-    // lazily-recomputed value rather than the potentially stale computedChunk
+
     derive: <D>(fn: (value: T) => D) => {
-      return computed(() => fn(computedInstance.get()));
+      // Incrementing subscriberCount ensures the parent recomputes eagerly
+      // when its dependencies change — so computedChunk stays fresh for
+      // the derived computed to read from
+      subscriberCount++;
+      const derivedComputed = computed(() => fn(computedInstance.get()));
+      return derivedComputed;
     },
+
     recompute: () => {
       isDirty = true;
       _recompute();
     },
+
     isDirty: () => isDirty,
+
     destroy: () => {
       unsubs.forEach(unsub => unsub());
       computedChunk.destroy();
       subscriberCount = 0;
     },
-  }
+  };
 
-  return computedInstance
+  return computedInstance;
 }
