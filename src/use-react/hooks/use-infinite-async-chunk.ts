@@ -36,6 +36,29 @@ export interface UseInfiniteAsyncChunkResult<T, E extends Error, P extends Recor
   observerTarget: React.RefObject<HTMLElement>;
 }
 
+
+/**
+ * Subscribes to an infinite async chunk and wires up automatic infinite scroll.
+ *
+ * Attach `observerTarget` to a sentinel element at the bottom of your list —
+ * the next page loads automatically when it enters the viewport.
+ * Use `loadMore()` for manual triggering.
+ *
+ * @param chunk - An `InfiniteAsyncChunk` instance.
+ * @param options.autoLoad - Auto-load on scroll (default: true).
+ * @param options.threshold - IntersectionObserver threshold 0.0–1.0 (default: 1.0).
+ * @param options.initialParams - Initial params excluding `page` and `pageSize`.
+ *
+ * @example
+ * const { data, loading, hasMore, observerTarget, loadMore } = useInfiniteAsyncChunk(postsChunk);
+ *
+ * return (
+ *   <>
+ *     {data?.map(post => <Post key={post.id} {...post} />)}
+ *     <div ref={observerTarget} />
+ *   </>
+ * );
+ */
 export function useInfiniteAsyncChunk<
   T,
   E extends Error = Error,

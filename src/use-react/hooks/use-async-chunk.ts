@@ -96,8 +96,22 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
 ): UseAsyncChunkResult<T, E, P>;
 
 /**
- * A hook that handles asynchronous state with built-in reactivity.
- * Provides loading, error, and data states with full asyncChunk functionality.
+ * Subscribes to an async chunk and returns its full state with reactive updates.
+ *
+ * Automatically handles `loading`, `error`, `data`, and `isPlaceholderData`.
+ * Pass `initialParams` to trigger a fetch with parameters on mount, or
+ * `fetchOnMount` to force a fetch for param-less chunks.
+ *
+ * @param asyncChunk - The async chunk to subscribe to.
+ * @param options.initialParams - Params to pass to the fetcher on mount.
+ * @param options.fetchOnMount - Force fetch on mount (default: false).
+ *
+ * @example
+ * const { data, loading, error } = useAsyncChunk(userChunk);
+ *
+ * @example
+ * // With params
+ * const { data } = useAsyncChunk(userChunk, { initialParams: { id: 1 } });
  */
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   asyncChunk: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>,
