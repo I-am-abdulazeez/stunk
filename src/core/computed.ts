@@ -74,10 +74,9 @@ export function computed<T>(computeFn: () => T): Computed<T> {
     peek: () => cachedValue,
     subscribe: (callback) => {
       const unsubscribe = computedChunk.subscribe(callback);
-      subscriberCount++; // Only increment if successful
-
+      subscriberCount++;
       return () => {
-        subscriberCount--; //  Decrement first
+        subscriberCount = Math.max(0, subscriberCount - 1);
         unsubscribe();
       };
     },
