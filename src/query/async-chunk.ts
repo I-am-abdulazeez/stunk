@@ -114,6 +114,29 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   refresh: (params?: Partial<P>) => Promise<void>;
 };
 
+
+/**
+ * Creates a reactive async state unit for data fetching.
+ *
+ * Tracks `loading`, `error`, `data`, and `lastFetched`. Fetchers with no
+ * parameters auto-fetch on creation. Fetchers with parameters wait for
+ * `setParams()` or `reload()`.
+ *
+ * @param fetcher - Async function returning data or a `FetcherResponse`.
+ * @param options.key - Deduplication key — concurrent calls share one request.
+ * @param options.enabled - Prevent fetching until ready (boolean or function).
+ * @param options.keepPreviousData - Show previous data while refetching.
+ * @param options.onSuccess - Called after every successful fetch.
+ * @param options.onError - Called when all retries are exhausted.
+ * @param options.pagination - Enable pagination (`mode: 'replace' | 'accumulate'`).
+ * @param options.refresh - Configure `staleTime`, `refetchInterval`, `refetchOnWindowFocus`.
+ *
+ * @example
+ * const users = asyncChunk(() => fetchUsers());
+ *
+ * const user = asyncChunk(({ id }: { id: number }) => fetchUser(id));
+ * user.setParams({ id: 1 });
+ */
 export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   fetcher: (params?: P & { page?: number; pageSize?: number }) => Promise<T | FetcherResponse<T>>,
   options: AsyncChunkOptExtended<T, E> = {}

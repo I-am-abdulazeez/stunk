@@ -3,8 +3,17 @@ import { chunk, type Chunk } from "../core/core";
 import type { AsyncChunk } from "./async-chunk";
 
 /**
- * Combines multiple async chunks into a single chunk.
- * The combined chunk tracks loading, error, and data states from all source chunks.
+ * Combines multiple async chunks into a single unified state chunk.
+ *
+ * The result tracks `loading` (true if any chunk is loading), `error` (first
+ * error encountered), `errors` (per-chunk errors), and `data` (per-chunk data).
+ *
+ * @param chunks - A record of named `AsyncChunk` instances.
+ * @returns A `Chunk<CombinedState<T>>` that reflects the live state of all inputs.
+ *
+ * @example
+ * const combined = combineAsyncChunks({ user: userChunk, posts: postsChunk });
+ * combined.get(); // { loading, error, errors, data: { user, posts } }
  */
 export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
   chunks: T

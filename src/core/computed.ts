@@ -23,21 +23,6 @@ export interface Computed<T> extends ReadOnlyChunk<T> {
  *
  * @param computeFn - A pure function that derives the computed value.
  * @returns A read-only `Computed<T>` with `isDirty()`, `recompute()`, `derive()`, `subscribe()`, `peek()`, and `destroy()`.
- *
- * @example
- * const price = chunk(100);
- * const qty = chunk(3);
- *
- * const total = computed(() => price.get() * qty.get());
- * total.get(); // 300
- *
- * price.set(200);
- * total.get(); // 600
- *
- * @example
- * // peek() does not create a dependency
- * const taxRate = chunk(0.1);
- * const subtotal = computed(() => price.get() * qty.peek()); // qty not tracked
  */
 export function computed<T>(computeFn: () => T): Computed<T> {
   const [initialValue, initialDeps] = trackDependencies(computeFn);

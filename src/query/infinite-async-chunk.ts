@@ -44,18 +44,25 @@ export type InfiniteAsyncChunk<T, E extends Error = Error, P extends Record<stri
     refresh: (params?: Partial<P>) => Promise<void>;
     forceCleanup: () => void;
   };
-
 /**
- * Creates an infinite scroll async chunk that automatically accumulates pages.
+ * Creates an infinite scroll async chunk that accumulates pages.
+ *
+ * A convenience wrapper around `asyncChunk` with `pagination.mode: 'accumulate'`
+ * pre-configured. Each `nextPage()` appends to the existing data array.
+ *
+ * @param fetcher - Async function receiving `{ page, pageSize, ...params }`,
+ *   returning `{ data: T[], hasMore?, total? }`.
+ * @param options.pageSize - Items per page (default: 10).
+ * @param options.key - Deduplication key.
+ * @param options.onSuccess - Called with the full accumulated array after each fetch.
  *
  * @example
- * const postsChunk = infiniteAsyncChunk(
- *   async ({ page, pageSize }) => {
- *     const res = await fetchPosts({ page, pageSize });
- *     return { data: res.posts, hasMore: res.hasMore };
- *   },
- *   { pageSize: 20, key: 'posts-infinite' }
+ * const posts = infiniteAsyncChunk(
+ *   async ({ page, pageSize }) => fetchPosts({ page, pageSize }),
+ *   { pageSize: 20 }
  * );
+ * posts.reload();   // page 1
+ * posts.nextPage(); // page 2 appended
  */
 export function infiniteAsyncChunk<
   T,

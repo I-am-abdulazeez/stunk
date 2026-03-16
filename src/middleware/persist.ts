@@ -18,6 +18,25 @@ export interface PersistedChunk<T> extends Chunk<T> {
   clearStorage: () => void;
 }
 
+/**
+ * Wraps a chunk with automatic persistence to a storage engine.
+ *
+ * Loads any saved value on creation. Saves on every `set()`.
+ * Gracefully disabled in SSR when no storage is available.
+ *
+ * @param baseChunk - The chunk to wrap.
+ * @param options.key - Storage key (required).
+ * @param options.storage - Storage engine (default: `localStorage`).
+ * @param options.serialize - Custom serializer (default: `JSON.stringify`).
+ * @param options.deserialize - Custom deserializer (default: `JSON.parse`).
+ * @param options.onError - Called on load/save errors or type mismatches.
+ *
+ * @example
+ * const user = chunk({ name: 'Alice' });
+ * const persisted = persist(user, { key: 'user' });
+ * persisted.set({ name: 'Bob' }); // saved to localStorage
+ * persisted.clearStorage();       // removes the key
+ */
 export function persist<T>(
   baseChunk: Chunk<T>,
   options: PersistOptions<T>

@@ -16,6 +16,25 @@ export interface ChunkWithHistory<T> extends Chunk<T> {
   clearHistory: () => void;
 }
 
+
+/**
+ * Wraps a chunk with undo/redo history tracking.
+ *
+ * Every `set()` call is recorded. `undo()` and `redo()` move through the stack.
+ * Branching is supported — calling `set()` after `undo()` discards forward history.
+ *
+ * @param baseChunk - The chunk to wrap.
+ * @param options.maxHistory - Max entries to keep (default: 100).
+ * @param options.skipDuplicates - `true` skips strictly equal values.
+ *   `'shallow'` also skips shallowly equal objects.
+ *
+ * @example
+ * const count = chunk(0);
+ * const tracked = history(count);
+ * tracked.set(1); tracked.set(2);
+ * tracked.undo(); // 1
+ * tracked.redo(); // 2
+ */
 export function history<T>(
   baseChunk: Chunk<T>,
   options: {

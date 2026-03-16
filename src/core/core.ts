@@ -137,25 +137,6 @@ export function batch(callback: () => void) {
  * @param initialValue - The starting value. Cannot be `undefined`.
  * @param config - Optional configuration for naming, middleware, and strict mode.
  * @returns A `Chunk<T>` with `get()`, `set()`, `peek()`, `subscribe()`, `derive()`, `reset()`, and `destroy()`.
- *
- * @throws If `initialValue` is `undefined`.
- *
- * @example
- * const count = chunk(0);
- * count.get();        // 0
- * count.set(1);       // subscribers notified
- * count.set(n => n + 1); // updater function
- * count.reset();      // back to 0
- *
- * @example
- * // Named chunk with strict mode — throws on unknown keys in dev
- * const user = chunk({ name: 'Alice', age: 30 }, { name: 'user', strict: true });
- *
- * @example
- * // With middleware
- * const positive = chunk(0, {
- *   middleware: [nonNegativeValidator]
- * });
  */
 export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T> {
   const chunkId = chunkIdCounter++;
