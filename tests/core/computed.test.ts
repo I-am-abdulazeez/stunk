@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { batch, chunk } from '../../src/core/core';
+import { chunk, batch } from '../../src/core/core';
 import { computed } from '../../src/core/computed';
 
 function createSubscriber(chunk: any) {
@@ -45,9 +45,9 @@ describe('computed', () => {
 
     const sum = computed(() => num1.get() + num2.get());
 
-    // @ts-ignore - checking properties don't exist
+    // @ts-ignore
     expect(sum.set).toBeUndefined();
-    // @ts-ignore - checking properties don't exist
+    // @ts-ignore
     expect(sum.reset).toBeUndefined();
   });
 
@@ -56,11 +56,9 @@ describe('computed', () => {
     const num2 = chunk(2);
 
     const sum = computed(() => num1.get() + num2.get());
-
     expect(sum.get()).toBe(3);
 
     num1.set(4);
-
     sum.recompute();
     expect(sum.get()).toBe(6);
   });
@@ -71,11 +69,9 @@ describe('computed', () => {
     const c = chunk(4);
 
     const result = computed(() => a.get() * b.get() + c.get());
-
     expect(result.get()).toBe(10);
 
     b.set(5);
-
     expect(result.get()).toBe(14);
   });
 
@@ -103,30 +99,25 @@ describe('computed', () => {
     const b = chunk(10);
 
     const sum = computed(() => a.get() + b.get());
-
     const { fn: subscriber, cleanup } = createSubscriber(sum);
 
-    // No initial call
     expect(subscriber).toHaveBeenCalledTimes(0);
 
     a.set(7);
-
     expect(subscriber).toHaveBeenCalledWith(17);
     expect(subscriber).toHaveBeenCalledTimes(1);
 
     cleanup();
   });
 
-  it("should mark computed as dirty when dependencies change", () => {
+  it('should mark computed as dirty when dependencies change', () => {
     const a = chunk(5);
     const b = chunk(10);
 
     const sum = computed(() => a.get() + b.get());
-
     expect(sum.isDirty()).toBe(false);
 
     a.set(7);
-
     expect(sum.isDirty()).toBe(true);
 
     expect(sum.get()).toBe(17);
@@ -135,48 +126,39 @@ describe('computed', () => {
 
   it('should handle notifications properly even when computed value does not change', () => {
     const a = chunk(5);
-
     const alwaysFifteen = computed(() => 15);
 
     const { fn: subscriber, cleanup } = createSubscriber(alwaysFifteen);
 
-    // No initial call
     expect(subscriber).toHaveBeenCalledTimes(0);
 
     a.set(7);
-
     expect(alwaysFifteen.get()).toBe(15);
-
-    // Should not be called because value didn't change
     expect(subscriber).toHaveBeenCalledTimes(0);
 
     cleanup();
   });
 
-  it("should not recompute unnecessarily", () => {
+  it('should not recompute unnecessarily', () => {
     const a = chunk(4);
     const b = chunk(6);
     const computeFn = vi.fn(() => a.get() + b.get());
 
     const sum = computed(computeFn);
-
     expect(sum.get()).toBe(10);
     expect(computeFn).toHaveBeenCalledTimes(1);
 
+    // batch with same values — no recompute
     batch(() => {
       a.set(4);
       b.set(6);
     });
 
-    // No changes, so no recompute even if we call get()
     expect(sum.get()).toBe(10);
     expect(computeFn).toHaveBeenCalledTimes(1);
 
-    batch(() => {
-      a.set(5);
-    });
+    batch(() => { a.set(5); });
 
-    // ✅ Call get() to trigger recompute
     expect(sum.get()).toBe(11);
     expect(computeFn).toHaveBeenCalledTimes(2);
   });
@@ -187,7 +169,6 @@ describe('computed', () => {
     const computeFn = vi.fn(() => a.get() + b.get());
 
     const sum = computed(() => computeFn());
-
     expect(sum.get()).toBe(3);
     expect(computeFn).toHaveBeenCalledTimes(1);
 
@@ -201,26 +182,21 @@ describe('computed', () => {
     const computeFn = vi.fn(() => a.get() + b.get());
 
     const sum = computed(computeFn);
-
     expect(sum.get()).toBe(10);
     expect(computeFn).toHaveBeenCalledTimes(1);
 
-    a.set(5); // Real change, marks dirty
+    a.set(5);
 
-    // ✅ Call get() to trigger recompute
     expect(sum.get()).toBe(11);
     expect(computeFn).toHaveBeenCalledTimes(2);
   });
-
 
   it('should work with batched operations', () => {
     const a = chunk(4);
     const b = chunk(6);
     const computeFn = vi.fn(() => a.get() + b.get());
 
-    // ✅ FIX: Pass computeFn directly
     const sum = computed(computeFn);
-
     expect(sum.get()).toBe(10);
     expect(computeFn).toHaveBeenCalledTimes(1);
 
@@ -231,10 +207,7 @@ describe('computed', () => {
       b.set(7);
     });
 
-    // ✅ FIX: Need to call get() to trigger recompute after batch
     expect(sum.get()).toBe(12);
-
-    // Should compute once after batch
     expect(computeFn).toHaveBeenCalledTimes(1);
   });
 
@@ -243,10 +216,8 @@ describe('computed', () => {
     const b = chunk(10);
 
     const sum = computed(() => a.get() + b.get());
-
     const { fn: subscriber, cleanup } = createSubscriber(sum);
 
-    // No initial notification
     expect(subscriber).toHaveBeenCalledTimes(0);
 
     a.set(7);
@@ -255,7 +226,7 @@ describe('computed', () => {
 
     subscriber.mockReset();
 
-    a.set(7); // Same value
+    a.set(7); // same value
     expect(subscriber).not.toHaveBeenCalled();
 
     cleanup();
@@ -266,19 +237,14 @@ describe('computed', () => {
     const b = chunk(10);
 
     const sum = computed(() => a.get() + b.get());
-
-    // Not dirty initially (just computed)
     expect(sum.isDirty()).toBe(false);
 
     a.set(7);
-    // Now dirty because dependency changed
     expect(sum.isDirty()).toBe(true);
 
-    // Getting clears dirty flag
     sum.get();
     expect(sum.isDirty()).toBe(false);
 
-    // Manual recompute also clears dirty
     b.set(12);
     expect(sum.isDirty()).toBe(true);
 
@@ -286,59 +252,46 @@ describe('computed', () => {
     expect(sum.isDirty()).toBe(false);
   });
 
-  // ✅ NEW TEST: Dynamic dependency tracking
   it('should handle dynamic dependencies', () => {
     const flag = chunk(true);
     const a = chunk(1);
     const b = chunk(2);
 
-    const result = computed(() => {
-      return flag.get() ? a.get() : b.get();
-    });
+    const result = computed(() => flag.get() ? a.get() : b.get());
 
     expect(result.get()).toBe(1);
 
-    // Change flag to switch dependency
     flag.set(false);
     expect(result.get()).toBe(2);
 
-    // Now b changes should trigger recompute
     b.set(5);
     expect(result.get()).toBe(5);
 
-    // But a changes should NOT (it's no longer a dependency)
     const computeFn = vi.fn(() => result.get());
     const spy = computed(() => computeFn());
 
     computeFn.mockClear();
     a.set(100);
 
-    // Should not recompute because a is not a current dependency
     expect(spy.get()).toBe(5);
   });
 
-  // ✅ NEW TEST: peek() doesn't create dependencies
   it('should not track dependencies when using peek()', () => {
     const a = chunk(5);
     const b = chunk(10);
 
     const sum = computed(() => a.get() + b.peek());
-
     expect(sum.get()).toBe(15);
 
-    // Changing b should NOT trigger recompute (peeked, not tracked)
     b.set(20);
-    expect(sum.get()).toBe(15); // Still 15, not 25
+    expect(sum.get()).toBe(15); // b not tracked
 
-    // But changing a SHOULD trigger recompute
     a.set(7);
-    expect(sum.get()).toBe(27); // 7 + 20 (picks up new b value)
+    expect(sum.get()).toBe(27); // 7 + 20
   });
 
-  // ✅ NEW TEST: Computed with objects
   it('should handle object values with shallow equality', () => {
     const obj = chunk({ count: 5 });
-
     const doubled = computed(() => ({ count: obj.get().count * 2 }));
 
     const subscriber = vi.fn();
@@ -346,25 +299,19 @@ describe('computed', () => {
 
     expect(doubled.get()).toEqual({ count: 10 });
 
-    // Same value, different reference
-    obj.set({ count: 5 });
-
-    // Should NOT notify because shallow equal detected no change
+    obj.set({ count: 5 }); // same value, different ref
     expect(subscriber).not.toHaveBeenCalled();
 
-    // Different value
     obj.set({ count: 6 });
     expect(subscriber).toHaveBeenCalledTimes(1);
     expect(subscriber).toHaveBeenCalledWith({ count: 12 });
   });
 
-  // ✅ NEW TEST: Cleanup
   it('should clean up subscriptions on destroy', () => {
     const a = chunk(5);
     const b = chunk(10);
 
     const sum = computed(() => a.get() + b.get());
-
     const subscriber = vi.fn();
     sum.subscribe(subscriber);
 
@@ -372,14 +319,12 @@ describe('computed', () => {
 
     sum.destroy();
 
-    // After destroy, changes should not trigger anything
     a.set(100);
     b.set(200);
 
     expect(subscriber).not.toHaveBeenCalled();
   });
 
-  // ✅ NEW TEST: Derive from computed
   it('should support deriving from computed values', () => {
     const a = chunk(5);
     const b = chunk(10);
@@ -392,5 +337,171 @@ describe('computed', () => {
     a.set(10);
     expect(sum.get()).toBe(20);
     expect(doubled.get()).toBe(40);
+  });
+});
+
+
+describe('computed — subscriberCount edge cases', () => {
+  it('should not go below zero when unsubscribe is called multiple times', () => {
+    const a = chunk(1);
+    const sum = computed(() => a.get() + 1);
+
+    const unsub = sum.subscribe(() => { });
+
+    // Call unsubscribe multiple times
+    unsub();
+    unsub();
+    unsub();
+
+    // subscriberCount should not be negative — eager recompute should still work correctly
+    // Set a value to trigger the dep subscriber
+    a.set(2);
+
+    // get() should still work correctly
+    expect(sum.get()).toBe(3);
+  });
+
+  it('should stop eager recompute when last subscriber unsubscribes', () => {
+    const a = chunk(1);
+    const computeFn = vi.fn(() => a.get() + 1);
+    const sum = computed(computeFn);
+
+    const unsub1 = sum.subscribe(() => { });
+    const unsub2 = sum.subscribe(() => { });
+
+    computeFn.mockClear();
+
+    // Both subscribers active — eager recompute should fire
+    a.set(2);
+    expect(computeFn).toHaveBeenCalledTimes(1);
+
+    computeFn.mockClear();
+
+    unsub1();
+    unsub2();
+
+    // No subscribers — should NOT eagerly recompute
+    a.set(3);
+    expect(computeFn).toHaveBeenCalledTimes(0);
+
+    // But get() should still recompute lazily
+    expect(sum.get()).toBe(4);
+    expect(computeFn).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('computed — derive freshness', () => {
+  it('should return fresh value from derive when parent computed is dirty', () => {
+    const a = chunk(5);
+    const b = chunk(10);
+
+    const sum = computed(() => a.get() + b.get());
+    const doubled = sum.derive(val => val * 2);
+
+    expect(doubled.get()).toBe(30);
+
+    // Mark sum as dirty
+    a.set(10);
+
+    // derived value should reflect the updated sum, not stale cached value
+    expect(doubled.get()).toBe(40);
+  });
+
+  it('should propagate freshness through multiple derive levels', () => {
+    const a = chunk(2);
+
+    const doubled = computed(() => a.get() * 2); // 4
+    const quadrupled = doubled.derive(val => val * 2); // 8
+    const octupled = quadrupled.derive(val => val * 2); // 16
+
+    expect(octupled.get()).toBe(16); // 2 * 2 * 2 * 2
+
+    a.set(3);
+    expect(octupled.get()).toBe(24); // 3 * 2 * 2 * 2
+  });
+
+  it('should notify derive subscribers when parent computed changes', () => {
+    const a = chunk(5);
+    const sum = computed(() => a.get() + 10);
+    const doubled = sum.derive(val => val * 2);
+
+    const subscriber = vi.fn();
+    doubled.subscribe(subscriber);
+
+    a.set(10);
+
+    expect(doubled.get()).toBe(40); // (10 + 10) * 2
+    expect(subscriber).toHaveBeenCalled();
+  });
+});
+
+
+describe('computed > diamond dependency pattern', () => {
+  it('should handle diamond dependency pattern correctly', () => {
+    const root = chunk(1);
+    const left = computed(() => root.get() * 2);
+    const right = computed(() => root.get() + 5);
+    const final = computed(() => `${left.get()}-${right.get()}`);
+
+    expect(left.get()).toBe(2);
+    expect(right.get()).toBe(6);
+    expect(final.get()).toBe('2-6');
+
+    const subscriber = vi.fn();
+    const unsubscribe = final.subscribe(subscriber);
+
+    expect(subscriber).toHaveBeenCalledTimes(0);
+
+    root.set(4);
+
+    expect(left.get()).toBe(8);
+    expect(right.get()).toBe(9);
+    expect(final.get()).toBe('8-9');
+
+    expect(subscriber).toHaveBeenCalledWith('8-9');
+    expect(subscriber).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+  });
+
+  it('should handle complex update chains in diamond patterns', () => {
+    const root = chunk(10);
+
+    const pathA = computed(() => root.get() + 5);
+    const pathB = computed(() => root.get() * 2);
+
+    type MergedState = { sum: number; product: number };
+
+    const merged = computed(() => ({
+      sum: pathA.get() + pathB.get(),
+      product: pathA.get() * pathB.get()
+    }));
+
+    expect(pathA.get()).toBe(15);
+    expect(pathB.get()).toBe(20);
+    expect(merged.get()).toEqual({ sum: 35, product: 300 });
+
+    const updates: MergedState[] = [];
+    const unsubscribe = merged.subscribe(val => updates.push({ ...val }));
+
+    root.set(20);
+
+    expect(pathA.get()).toBe(25);
+    expect(pathB.get()).toBe(40);
+    expect(merged.get()).toEqual({ sum: 65, product: 1000 });
+
+    root.set(0);
+
+    expect(pathA.get()).toBe(5);
+    expect(pathB.get()).toBe(0);
+    expect(merged.get()).toEqual({ sum: 5, product: 0 });
+
+    expect(updates).toEqual([
+      { sum: 65, product: 1000 },
+      { sum: 5, product: 0 }
+    ]);
+
+    unsubscribe();
   });
 });
