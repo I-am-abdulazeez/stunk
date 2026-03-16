@@ -13,10 +13,14 @@ export default defineConfig([
     treeshake: true,
     splitting: false,
     target: 'es2020',
+    env: {
+      NODE_ENV: 'production',
+    },
     define: {
-      __DEV__: "process.env.NODE_ENV !== 'production'",
+      __DEV__: 'false',
     },
   },
+
   // Subpath entries — middleware, query, react, vue
   {
     entry: {
@@ -34,7 +38,7 @@ export default defineConfig([
     target: 'es2020',
     external: ['react', 'vue'],
     define: {
-      __DEV__: "process.env.NODE_ENV !== 'production'",
+      __DEV__: 'true',
     },
   }
 ])
