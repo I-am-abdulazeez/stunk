@@ -7,7 +7,9 @@ import type { Middleware } from "../core/core";
  * const count = chunk(0, { middleware: [logger()] });
  * count.set(5); // logs: "Setting value: 5"
  */
-export const logger: <T>() => Middleware<T> = () => (value) => {
-  console.log("Setting value:", value);
-  return value;
-};
+export function logger<T>(): Middleware<T> {
+  return (value) => {
+    console.log("Setting value:", value);
+    return value;
+  };
+}
