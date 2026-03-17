@@ -16,7 +16,7 @@ describe("Middleware Tests", () => {
   });
 
   test("Logger middleware should log updates", () => {
-    const count = chunk(0, { middleware: [logger] });
+    const count = chunk(0, { middleware: [logger()] });
 
     const unsubscribe = count.subscribe(() => { }); // Subscribe to capture updates
 
