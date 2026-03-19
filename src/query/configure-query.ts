@@ -63,8 +63,12 @@ let globalConfig: GlobalQueryConfig = {};
  */
 export function configureQuery(config: GlobalQueryConfig): void {
   globalConfig = {
-    query: { ...globalConfig.query, ...config.query },
-    mutation: { ...globalConfig.mutation, ...config.mutation },
+    ...(config.query !== undefined && {
+      query: { ...globalConfig.query, ...config.query },
+    }),
+    ...(config.mutation !== undefined && {
+      mutation: { ...globalConfig.mutation, ...config.mutation },
+    }),
   };
 }
 
