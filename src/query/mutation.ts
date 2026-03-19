@@ -47,7 +47,7 @@ export interface Mutation<TData, TError extends Error = Error, TVariables = void
    * const { data, error } = await createPost.mutate({ title: 'Hello' });
    * if (!error) router.push('/posts');
    */
-  mutate: (variables: TVariables) => Promise<MutationResult<TData, TError>>;
+  mutate: (...args: TVariables extends void ? [] : [variables: TVariables]) => Promise<MutationResult<TData, TError>>;
   /** Returns the current mutation state */
   get: () => MutationState<TData, TError>;
   /** Subscribe to state changes. Returns an unsubscribe function. */
@@ -110,7 +110,8 @@ export function mutation<TData, TError extends Error = Error, TVariables = void>
 
   const stateChunk = chunk<MutationState<TData, TError>>(initialState);
 
-  const mutate = async (variables: TVariables): Promise<MutationResult<TData, TError>> => {
+  const mutate = async (...args: TVariables extends void ? [] : [variables: TVariables]): Promise<MutationResult<TData, TError>> => {
+    const variables = args[0] as TVariables;
     stateChunk.set({
       loading: true,
       data: null,
