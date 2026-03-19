@@ -1,5 +1,7 @@
 import type { AsyncChunk } from "./async-chunk";
 import type { GlobalQueryConfig } from "./configure-query";
+import { getGlobalQueryConfig } from "./configure-query";
+import { chunk } from "../core/core";
 
 export type MutationFn<TData, TVariables> = (variables: TVariables) => Promise<TData>;
 
@@ -56,3 +58,106 @@ export interface Mutation<TData, TError extends Error = Error, TVariables = void
 
 /** Global mutation config shape — used internally by configureQuery */
 export type GlobalMutationConfig = NonNullable<GlobalQueryConfig['mutation']>;
+
+/**
+ * Creates a reactive mutation for POST, PUT, DELETE, or any async side effect.
+ *
+ * Always returns a promise that resolves — never throws.
+ * On success, automatically reloads any chunks listed in `invalidates`.
+ *
+ * @param mutationFn - Async function that performs the side effect.
+ * @param options.invalidates - Chunks to reload after a successful mutation.
+ * @param options.onSuccess - Called with data and variables on success.
+ * @param options.onError - Called with error and variables on failure.
+ * @param options.onSettled - Called after every attempt regardless of outcome.
+ *
+ * @example
+ * const createPost = mutation(
+ *   async (data: NewPost) => fetchAPI('/posts', { method: 'POST', body: data }),
+ *   {
+ *     invalidates: [postsChunk],
+ *     onSuccess: (data) => toast.success('Post created!'),
+ *     onError: (err) => toast.error(err.message),
+ *   }
+ * );
+ *
+ * // Fire and forget
+ * createPost.mutate({ title: 'Hello' });
+ *
+ * // Await for local control
+ * const { data, error } = await createPost.mutate({ title: 'Hello' });
+ * if (!error) router.push('/posts');
+ */
+export function mutation<TData, TError extends Error = Error, TVariables = void>(
+  mutationFn: MutationFn<TData, TVariables>,
+  options: MutationOptions<TData, TError, TVariables> = {}
+): Mutation<TData, TError, TVariables> {
+  const globalMutation = getGlobalQueryConfig().mutation ?? {};
+
+  const {
+    invalidates = [],
+    onSuccess = globalMutation.onSuccess as ((data: TData, variables: TVariables) => void) | undefined,
+    onError = globalMutation.onError as ((error: TError, variables: TVariables) => void) | undefined,
+    onSettled,
+  } = options;
+
+  const initialState: MutationState<TData, TError> = {
+    loading: false,
+    data: null,
+    error: null,
+    isSuccess: false,
+  };
+
+  const stateChunk = chunk<MutationState<TData, TError>>(initialState);
+
+  const mutate = async (variables: TVariables): Promise<MutationResult<TData, TError>> => {
+    stateChunk.set({
+      loading: true,
+      data: null,
+      error: null,
+      isSuccess: false,
+    });
+
+    try {
+      const data = await mutationFn(variables);
+
+      stateChunk.set({
+        loading: false,
+        data,
+        error: null,
+        isSuccess: true,
+      });
+
+      // Reload all invalidated chunks after success
+      if (invalidates.length > 0) {
+        await Promise.all(invalidates.map(c => c.reload()));
+      }
+
+      if (onSuccess) onSuccess(data, variables);
+      if (onSettled) onSettled(data, null, variables);
+
+      return { data, error: null };
+    } catch (err) {
+      const error = err as TError;
+
+      stateChunk.set({
+        loading: false,
+        data: null,
+        error,
+        isSuccess: false,
+      });
+
+      if (onError) onError(error, variables);
+      if (onSettled) onSettled(null, error, variables);
+
+      return { data: null, error };
+    }
+  };
+
+  return {
+    mutate,
+    get: () => stateChunk.get(),
+    subscribe: (callback) => stateChunk.subscribe(callback),
+    reset: () => stateChunk.set(initialState),
+  };
+}
