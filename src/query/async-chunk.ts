@@ -1,8 +1,7 @@
 import { chunk, Chunk } from "../core/core";
-import { AsyncChunkOpt } from "../core/types";
+import { getGlobalQueryConfig } from "./configure-query";
 
 // Global registry for in-flight request deduplication
-// Key: chunk name (if provided) or auto-generated chunkId
 const inFlightRequests = new Map<string, Promise<void>>();
 let chunkCounter = 0;
 
@@ -26,59 +25,61 @@ export interface AsyncStateWithPagination<T, E extends Error> extends AsyncState
   pagination?: PaginationState;
 }
 
-export interface RefreshConfig {
-  /** Time in ms after which data becomes stale */
-  staleTime?: number;
-  /** Time in ms to cache data */
-  cacheTime?: number;
-  /** Auto-refresh interval in ms */
-  refetchInterval?: number;
-  /** Refetch when window regains focus (default: false) */
-  refetchOnWindowFocus?: boolean;
-}
-
-export interface PaginationConfig {
-  /** Initial page number (default: 1) */
-  initialPage?: number;
-  /** Items per page (default: 10) */
-  pageSize?: number;
-  /** Whether to accumulate pages (infinite scroll) or replace */
-  mode?: 'replace' | 'accumulate';
-}
-
-export interface AsyncChunkOptExtended<T, E extends Error> extends AsyncChunkOpt<T, E> {
-  /**
-   * Unique key(name) for this async chunk.
-   * Used as the deduplication key — if two components call reload() on the same
-   * named chunk simultaneously, only one request fires. Defaults to an auto-generated ID.
-   */
-  key?: string;
-  refresh?: RefreshConfig;
-  pagination?: PaginationConfig;
-  /**
-  * Enable or disable the fetcher.
-  * Accepts a static boolean or a function for dynamic evaluation.
-  * When false, no fetch is triggered until enabled again.
-  */
-  enabled?: boolean | (() => boolean);
-  /** Keep previous data visible while new data is loading — prevents UI flicker on param changes (default: false) */
-  keepPreviousData?: boolean;
-}
-
 export interface FetcherResponse<T> {
   data: T;
   total?: number;
   hasMore?: boolean;
 }
 
+export interface AsyncChunkOptions<T, E extends Error = Error> {
+  /** Deduplication key — concurrent calls with the same key share one in-flight request */
+  key?: string;
+
+  /** Seed data shown before the first fetch completes */
+  initialData?: T | null;
+  /** Disable fetching until ready — pass a function for dynamic evaluation */
+  enabled?: boolean | (() => boolean);
+
+  /** Called after every successful fetch */
+  onSuccess?: (data: T) => void;
+  /** Called when all retries are exhausted */
+  onError?: (error: E) => void;
+
+  /** Number of retries on failure (default: 0) */
+  retryCount?: number;
+  /** Delay in ms between retries (default: 1000) */
+  retryDelay?: number;
+
+  /** Show previous data while refetching — prevents UI flicker on param changes (default: false) */
+  keepPreviousData?: boolean;
+
+  /** Time in ms before data is considered stale (default: 0) */
+  staleTime?: number;
+  /** Time in ms to cache data after last subscriber leaves (default: 300_000) */
+  cacheTime?: number;
+  /** Auto-refetch interval in ms */
+  refetchInterval?: number;
+  /** Refetch when window regains focus (default: false) */
+  refetchOnWindowFocus?: boolean;
+
+  pagination?: {
+    /** Initial page number (default: 1) */
+    initialPage?: number;
+    /** Items per page (default: 10) */
+    pageSize?: number;
+    /** Replace data on each page load, or accumulate for infinite scroll (default: 'replace') */
+    mode?: 'replace' | 'accumulate';
+  };
+}
+
 export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncStateWithPagination<T, E>> {
-  /** Force reload data */
+  /** Force a fresh fetch, ignoring stale time */
   reload: (params?: any) => Promise<void>;
-  /** Smart refresh - respects stale time */
+  /** Fetch only if data is stale — respects staleTime */
   refresh: (params?: any) => Promise<void>;
-  /** Mutate data directly */
+  /** Update data directly without a network request */
   mutate: (mutator: (currentData: T | null) => T) => void;
-  /** Reset to initial state */
+  /** Reset to initial state and re-fetch */
   reset: () => void;
   /** Safe cleanup — only tears down if no active subscribers remain */
   cleanup: () => void;
@@ -89,25 +90,25 @@ export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState
 }
 
 export interface PaginatedAsyncChunk<T, E extends Error = Error> extends AsyncChunk<T, E> {
-  /** Load next page */
+  /** Load the next page */
   nextPage: () => Promise<void>;
-  /** Load previous page */
+  /** Load the previous page */
   prevPage: () => Promise<void>;
-  /** Go to specific page */
+  /** Jump to a specific page */
   goToPage: (page: number) => Promise<void>;
-  /** Reset pagination to first page */
+  /** Reset pagination to page 1 and re-fetch */
   resetPagination: () => Promise<void>;
 }
 
 // Overloaded signatures
 export function asyncChunk<T, E extends Error = Error>(
   fetcher: () => Promise<T | FetcherResponse<T>>,
-  options?: AsyncChunkOptExtended<T, E>
+  options?: AsyncChunkOptions<T, E>
 ): AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>;
 
 export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   fetcher: (params: P & { page?: number; pageSize?: number }) => Promise<T | FetcherResponse<T>>,
-  options?: AsyncChunkOptExtended<T, E>
+  options?: AsyncChunkOptions<T, E>
 ): (AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>) & {
   setParams: (params: Partial<P>) => void;
   reload: (params?: Partial<P>) => Promise<void>;
@@ -128,8 +129,10 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
  * @param options.keepPreviousData - Show previous data while refetching.
  * @param options.onSuccess - Called after every successful fetch.
  * @param options.onError - Called when all retries are exhausted.
+ * @param options.staleTime - Time in ms before data is considered stale.
+ * @param options.refetchInterval - Auto-refetch interval in ms.
+ * @param options.refetchOnWindowFocus - Refetch when window regains focus.
  * @param options.pagination - Enable pagination (`mode: 'replace' | 'accumulate'`).
- * @param options.refresh - Configure `staleTime`, `refetchInterval`, `refetchOnWindowFocus`.
  *
  * @example
  * const users = asyncChunk(() => fetchUsers());
@@ -139,32 +142,29 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
  */
 export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   fetcher: (params?: P & { page?: number; pageSize?: number }) => Promise<T | FetcherResponse<T>>,
-  options: AsyncChunkOptExtended<T, E> = {}
+  options: AsyncChunkOptions<T, E> = {}
 ) {
+  // Merge global defaults — per-chunk options always win
+  const globalQuery = getGlobalQueryConfig().query ?? {};
+
   const {
+    key,
     initialData = null,
-    onError,
-    onSuccess,
-    retryCount = 0,
-    retryDelay = 1000,
-    refresh: refreshConfig = {},
-    pagination: paginationConfig,
     enabled: enabledOption = true,
+    onSuccess = globalQuery.onSuccess as ((data: T) => void) | undefined,
+    onError = globalQuery.onError as ((error: E) => void) | undefined,
+    retryCount = globalQuery.retryCount ?? 0,
+    retryDelay = globalQuery.retryDelay ?? 1000,
     keepPreviousData = false,
-    key
+    staleTime = globalQuery.staleTime ?? 0,
+    cacheTime = globalQuery.cacheTime ?? 5 * 60 * 1000,
+    refetchInterval = globalQuery.refetchInterval,
+    refetchOnWindowFocus = globalQuery.refetchOnWindowFocus ?? false,
+    pagination: paginationConfig,
   } = options;
 
-  const {
-    staleTime = 0,
-    cacheTime = 5 * 60 * 1000,
-    refetchInterval,
-    refetchOnWindowFocus = false,
-  } = refreshConfig;
-
-  // Stable deduplication key — named chunks share in-flight requests across components
   const chunkKey = key ?? `async_chunk_${chunkCounter++}`;
 
-  // enabled can be a static boolean or a dynamic function
   const isEnabled = () =>
     typeof enabledOption === 'function'
       ? (enabledOption as () => boolean)()
@@ -180,8 +180,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     data: initialData,
     lastFetched: undefined,
     isPlaceholderData: false,
-    // Declare all pagination fields upfront so validateObjectShape
-    // knows the full shape and doesn't warn when total/hasMore arrive
     pagination: isPaginated ? {
       page: paginationConfig.initialPage || 1,
       pageSize: paginationConfig.pageSize || 10,
@@ -219,24 +217,17 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   };
 
   const teardownSideEffects = () => {
-    if (intervalId) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
-    if (cacheTimeoutId) {
-      clearTimeout(cacheTimeoutId);
-      cacheTimeoutId = null;
-    }
+    if (intervalId) { clearInterval(intervalId); intervalId = null; }
+    if (cacheTimeoutId) { clearTimeout(cacheTimeoutId); cacheTimeoutId = null; }
     if (windowFocusHandler && typeof window !== 'undefined') {
       window.removeEventListener('focus', windowFocusHandler);
       windowFocusHandler = null;
     }
   };
 
-  // Single source of truth for all side effect setup
   const setupSideEffects = () => {
     if (!isEnabled()) return;
-    if (typeof window === 'undefined') return; // skip all side effects on server
+    if (typeof window === 'undefined') return;
 
     if (refetchInterval && refetchInterval > 0) {
       intervalId = setInterval(() => {
@@ -244,7 +235,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       }, refetchInterval) as unknown as number;
     }
 
-    if (refetchOnWindowFocus && typeof window !== 'undefined') {
+    if (refetchOnWindowFocus) {
       windowFocusHandler = () => {
         if (isStale()) fetchData(undefined, 0, false);
       };
@@ -259,12 +250,8 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       currentParams = { ...currentParams, ...params };
     }
 
-    if (!force && !isStale() && baseChunk.get().data !== null) {
-      return;
-    }
+    if (!force && !isStale() && baseChunk.get().data !== null) return;
 
-    // --- Request deduplication ---
-    // If a request with the same key is already in-flight, return that promise
     if (inFlightRequests.has(chunkKey)) {
       return inFlightRequests.get(chunkKey)!;
     }
@@ -275,7 +262,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       ...state,
       loading: true,
       error: null,
-      data: keepPreviousData ? state.data : state.data,
+      data: state.data,
       isPlaceholderData: keepPreviousData && state.data !== null,
     });
 
@@ -284,7 +271,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         let fetchParams: any = { ...currentParams };
 
         if (isPaginated) {
-          // Re-read pagination state fresh — don't use stale closure
           const currentPagination = baseChunk.get().pagination;
           if (currentPagination) {
             fetchParams.page = currentPagination.page;
@@ -309,7 +295,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
           data = result as T;
         }
 
-        // Re-read state after await — state may have changed while fetching
         const freshState = baseChunk.get();
 
         if (
@@ -367,9 +352,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
 
   // Initialize side effects and initial fetch
   setupSideEffects();
-  if (isEnabled() && !expectsParams) {
-    fetchData();
-  }
+  if (isEnabled() && !expectsParams) fetchData();
 
   const baseInstance = {
     ...baseChunk,
@@ -400,21 +383,14 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     reset: () => {
       teardownSideEffects();
       currentParams = {};
-      baseChunk.set({
-        ...initialState,
-        loading: isEnabled() && !expectsParams,
-      });
+      baseChunk.set({ ...initialState, loading: isEnabled() && !expectsParams });
       setupSideEffects();
-      if (isEnabled() && !expectsParams) {
-        fetchData();
-      }
+      if (isEnabled() && !expectsParams) fetchData();
     },
 
     // Safe cleanup — only tears down side effects if no active subscribers remain
     cleanup: () => {
-      if (subscriberCount <= 0) {
-        teardownSideEffects();
-      }
+      if (subscriberCount <= 0) teardownSideEffects();
     },
 
     // Force cleanup regardless of subscriber count — use for destroy scenarios
@@ -432,16 +408,12 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         }
       }
       currentParams = next;
-      if (isEnabled()) {
-        fetchData(currentParams as Partial<P>, retryCount, true);
-      }
+      if (isEnabled()) fetchData(currentParams as Partial<P>, retryCount, true);
     },
 
     clearParams: () => {
       currentParams = {};
-      if (isEnabled()) {
-        fetchData(undefined, retryCount, true);
-      }
+      if (isEnabled()) fetchData(undefined, retryCount, true);
     },
   };
 
@@ -451,8 +423,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
 
       nextPage: async () => {
         const state = baseChunk.get();
-        if (!state.pagination) return;
-        if (state.pagination.hasMore === false) return;
+        if (!state.pagination || state.pagination.hasMore === false) return;
         baseChunk.set({
           ...state,
           pagination: { ...state.pagination, page: state.pagination.page + 1 }
