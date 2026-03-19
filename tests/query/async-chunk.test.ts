@@ -202,7 +202,7 @@ describe('asyncChunk — core', () => {
     let callCount = 0;
     const userChunk = asyncChunk<User>(
       async () => { callCount++; return { id: callCount, name: `User ${callCount}` }; },
-      { refresh: { staleTime: 1000 } }
+      { staleTime: 1000 }
     );
 
     await delay(100);
@@ -220,7 +220,7 @@ describe('asyncChunk — core', () => {
     let callCount = 0;
     const userChunk = asyncChunk<User>(
       async () => { callCount++; return { id: callCount, name: `User ${callCount}` }; },
-      { refresh: { staleTime: 50 } }
+      { staleTime: 50 }
     );
 
     await delay(100);
@@ -497,7 +497,7 @@ describe('asyncChunk — side effects', () => {
         fetchCount++;
         return { id: fetchCount, name: `User ${fetchCount}` };
       },
-      { refresh: { refetchInterval: 1000 } }
+      { refetchInterval: 1000 }
     );
 
     // Initial fetch
@@ -522,7 +522,7 @@ describe('asyncChunk — side effects', () => {
         fetchCount++;
         return { id: fetchCount, name: `User ${fetchCount}` };
       },
-      { refresh: { refetchInterval: 1000 } }
+      { refetchInterval: 1000 }
     );
 
     await vi.advanceTimersByTimeAsync(100);
@@ -542,7 +542,7 @@ describe('asyncChunk — side effects', () => {
         fetchCount++;
         return { id: fetchCount, name: `User ${fetchCount}` };
       },
-      { refresh: { refetchOnWindowFocus: true, staleTime: 0 } }
+      { refetchOnWindowFocus: true, staleTime: 0 }
     );
 
     await vi.runAllTimersAsync();
@@ -564,7 +564,7 @@ describe('asyncChunk — side effects', () => {
         fetchCount++;
         return { id: fetchCount, name: `User ${fetchCount}` };
       },
-      { refresh: { refetchOnWindowFocus: true, staleTime: 60_000 } }
+      { refetchOnWindowFocus: true, staleTime: 60_000 }
     );
 
     await vi.advanceTimersByTimeAsync(100);
