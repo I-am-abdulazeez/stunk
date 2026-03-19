@@ -1,13 +1,5 @@
 import { AsyncChunk } from "../query";
 
-export type AsyncChunkOpt<T, E extends Error> = {
-  initialData?: T | null;
-  onError?: (error: E) => void;
-  onSuccess?: (data: T) => void;
-  retryCount?: number;
-  retryDelay?: number;
-}
-
 export type InferAsyncData<T> = T extends AsyncChunk<infer U, Error> ? U : never;
 
 export type CombinedData<T extends Record<string, AsyncChunk<any>>> = {
