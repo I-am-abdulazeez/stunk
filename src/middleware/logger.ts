@@ -1,11 +1,5 @@
 import type { Middleware } from "../core/core";
 
-<<<<<<< HEAD
-export const logger: Middleware<any> = (value) => {
-  console.log("Setting value:", value);
-  return value;
-};
-=======
 /**
  * Middleware that logs every value passed to `set()` to the console.
  *
@@ -19,4 +13,3 @@ export function logger<T>(): Middleware<T> {
     return value;
   };
 }
->>>>>>> v3

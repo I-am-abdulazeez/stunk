@@ -57,79 +57,9 @@ export function processMiddleware<T>(
     throw new Error("Value cannot be undefined.");
   }
 
-<<<<<<< HEAD
-/**
- * Combines multiple async chunks into a single chunk.
- * The combined chunk tracks loading, error, and data states from all source chunks.
- */
-export function combineAsyncChunks<T extends Record<string, AsyncChunk<any>>>(
-  chunks: T
-): Chunk<CombinedState<T>> {
-  const initialData = Object.keys(chunks).reduce((acc, key) => {
-    acc[key as keyof T] = null;
-    return acc;
-  }, {} as CombinedData<T>);
-
-  const initialState: CombinedState<T> = {
-    loading: Object.keys(chunks).length > 0,
-    error: null,
-    errors: {},
-    data: initialData
-  };
-
-  const combined = chunk(initialState);
-
-  // Subscribe to each async chunk
-  Object.entries(chunks).forEach(([key, asyncChunk]) => {
-    asyncChunk.subscribe((state) => {
-      const currentState = combined.get();
-
-      // Recalculate loading and error states from all chunks
-      let hasLoading = false;
-      let firstError: Error | null = null;
-      const allErrors: Partial<{ [K in keyof T]: Error }> = {};
-
-      Object.entries(chunks).forEach(([chunkKey, chunk]) => {
-        const chunkState = chunk.get();
-
-        // Check loading state
-        if (chunkState.loading) {
-          hasLoading = true;
-        }
-        // Collect errors
-        if (chunkState.error) {
-          if (!firstError) firstError = chunkState.error;
-          allErrors[chunkKey as keyof T] = chunkState.error;
-        }
-      });
-
-      // Update combined state
-      combined.set({
-        loading: hasLoading,
-        error: firstError,
-        errors: allErrors,
-        data: {
-          ...currentState.data,
-          [key]: state.data
-        },
-      });
-    });
-  });
-
-  return combined;
-}
-
-export function processMiddleware<T>(
-  initialValue: T,
-  middleware: (Middleware<T> | NamedMiddleware<T>)[]
-): T {
-  if (initialValue === null) {
-    throw new Error("Value cannot be null.");
-=======
   // null is a valid value in v3 — pass it through unchanged if no middleware
   if (middleware.length === 0) {
     return initialValue;
->>>>>>> v3
   }
 
   let currentValue = initialValue;
@@ -148,12 +78,8 @@ export function processMiddleware<T>(
       // If undefined is returned, stop processing the middleware chain
       if (result === undefined) break;
 
-<<<<<<< HEAD
-      // Null values are not allowed
-=======
       // Null returned from middleware is not allowed — middleware must
       // return a value or undefined to stop the chain
->>>>>>> v3
       if (result === null) {
         throw new Error(`Middleware "${middlewareName}" returned null value.`);
       }

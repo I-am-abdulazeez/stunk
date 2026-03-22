@@ -1,14 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-<<<<<<< HEAD
-import { AsyncChunk, AsyncStateWithPagination, PaginatedAsyncChunk, PaginationState } from "../../core/async-chunk";
-=======
 import {
   AsyncChunk,
   AsyncStateWithPagination,
   PaginatedAsyncChunk,
   PaginationState,
 } from "../../query/async-chunk";
->>>>>>> v3
 
 // Type guard to check if chunk has pagination methods
 function isPaginatedChunk<T, E extends Error>(
@@ -123,28 +119,11 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
 ) {
   const { initialParams, fetchOnMount = false } = options;
 
-<<<<<<< HEAD
-  const [state, setState] = useState<AsyncStateWithPagination<T, E>>(() => asyncChunk.get());
-  const initConfigRef = useRef<{
-    chunk: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E> | (AsyncChunk<T, E> & { setParams: (params: Partial<P>) => void });
-    initialParams?: Partial<P>;
-    fetchOnMount?: boolean;
-  } | null>(null);
-
-  if (!initConfigRef.current || initConfigRef.current.chunk !== asyncChunk) {
-    initConfigRef.current = {
-      chunk: asyncChunk,
-      initialParams,
-      fetchOnMount,
-    };
-  }
-=======
   // Initialise from the chunk's current state — closes the gap between
   // first render and when the subscription becomes active
   const [state, setState] = useState<AsyncStateWithPagination<T, E>>(
     () => asyncChunk.get()
   );
->>>>>>> v3
 
   // Stable ref to options so the single useEffect never needs to re-run
   // when initialParams or fetchOnMount change after mount
@@ -162,23 +141,6 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
       setState(newState);
     });
 
-<<<<<<< HEAD
-    return unsubscribe;
-  }, [asyncChunk]);
-
-  // Set initial params and trigger fetch
-  useEffect(() => {
-    const initConfig = initConfigRef.current;
-    const initialParamsForChunk = initConfig?.initialParams;
-    const fetchOnMountForChunk = initConfig?.fetchOnMount;
-
-    if (initialParamsForChunk && hasSetParams(asyncChunk)) {
-      asyncChunk.setParams(initialParamsForChunk);
-    } else if (fetchOnMountForChunk && !initialParamsForChunk) {
-      asyncChunk.reload();
-    }
-  }, [asyncChunk]);
-=======
     // Trigger initial fetch based on options
     const { initialParams: ip, fetchOnMount: fom } = optionsRef.current;
     if (ip && hasSetParams(asyncChunk)) {
@@ -186,7 +148,6 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     } else if (fom) {
       asyncChunk.reload();
     }
->>>>>>> v3
 
     return () => {
       unsubscribe();
@@ -227,37 +188,6 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     if (hasClearParams(asyncChunk)) asyncChunk.clearParams();
   }, [asyncChunk]);
 
-<<<<<<< HEAD
-  const nextPage = useCallback(() => {
-    if (isPaginatedChunk(asyncChunk)) {
-      return asyncChunk.nextPage();
-    }
-    return Promise.resolve();
-  }, [asyncChunk]);
-
-  const prevPage = useCallback(() => {
-    if (isPaginatedChunk(asyncChunk)) {
-      return asyncChunk.prevPage();
-    }
-    return Promise.resolve();
-  }, [asyncChunk]);
-
-  const goToPage = useCallback((page: number) => {
-    if (isPaginatedChunk(asyncChunk)) {
-      return asyncChunk.goToPage(page);
-    }
-    return Promise.resolve();
-  }, [asyncChunk]);
-
-  const resetPagination = useCallback(() => {
-    if (isPaginatedChunk(asyncChunk)) {
-      return asyncChunk.resetPagination();
-    }
-    return Promise.resolve();
-  }, [asyncChunk]);
-
-  const { data, loading, error, lastFetched, pagination } = state;
-=======
   // Pagination — unconditional, guard internally
   const nextPage = useCallback(
     () => isPaginatedChunk(asyncChunk) ? asyncChunk.nextPage() : Promise.resolve(),
@@ -280,7 +210,6 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
   );
 
   const { data, loading, error, lastFetched, isPlaceholderData = false, pagination } = state;
->>>>>>> v3
 
   const result: UseAsyncChunkResult<T, E, P> = {
     data,
