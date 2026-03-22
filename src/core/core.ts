@@ -6,30 +6,106 @@ export type NamedMiddleware<T> = {
   name?: string;
   fn: Middleware<T>;
 };
+export interface ChunkConfig<T> {
+  name?: string;
+  middleware?: (Middleware<T> | NamedMiddleware<T>)[];
+  /**
+   * When true, setting a value with keys not present in the initial
+   * shape throws an error in development. Useful for catching accidental
+   * shape mutations early. Has no effect in production. (default: false)
+   */
+  strict?: boolean;
+}
 
 export interface Chunk<T> {
   /** Get the current value of the chunk. */
   get: () => T;
+  /** Peek at the current value without tracking dependencies. */
+  peek: () => T;
   /** Set a new value for the chunk & Update existing value efficiently. */
   set: (newValueOrUpdater: T | ((currentValue: T) => T)) => void;
   /** Subscribe to changes in the chunk. Returns an unsubscribe function. */
   subscribe: (callback: Subscriber<T>) => () => void;
   /** Create a derived chunk based on this chunk's value. */
-  derive: <D>(fn: (value: T) => D) => Chunk<D>;
+  derive: <D>(fn: (value: T) => D) => ReadOnlyChunk<D>;
   /** Reset the chunk to its initial value. */
   reset: () => void;
   /** Destroy the chunk and all its subscribers. */
   destroy: () => void;
 }
 
+export interface ReadOnlyChunk<T> extends Omit<Chunk<T>, 'set' | 'reset'> {
+  derive: <D>(fn: (value: T) => D) => ReadOnlyChunk<D>;
+}
+
+
+// DEPENDENCY TRACKING SYSTEM (for computed)
+let activeEffect: Set<Chunk<any>> | null = null;
+
+export function trackDependencies<T>(fn: () => T): [T, Chunk<any>[]] {
+  const deps = new Set<Chunk<any>>();
+  const previousEffect = activeEffect;
+  activeEffect = deps;
+
+  try {
+    const result = fn();
+    return [result, Array.from(deps)];
+  } finally {
+    activeEffect = previousEffect;
+  }
+}
+
+/**
+ * Executes a function while tracking which chunks call `.get()` inside it.
+ * Used internally by `computed()` to discover dependencies automatically.
+ *
+ * @param fn - The function to execute and track.
+ * @returns A tuple of `[result, dependencies]` where `dependencies` is the
+ * list of chunks whose `.get()` was called during execution.
+ *
+ * @example
+ * const a = chunk(1);
+ * const b = chunk(2);
+ *
+ * const [result, deps] = trackDependencies(() => a.get() + b.get());
+ * // result → 3
+ * // deps   → [a, b]
+ */
+function trackChunkAccess(chunk: Chunk<any>) {
+  if (activeEffect) {
+    activeEffect.add(chunk);
+  }
+}
+
+
+// BATCHING SYSTEM
 let isBatching = false;
 const dirtyChunks = new Set<number>();
 const chunkRegistry = new Map<number, { notify: () => void }>();
 let chunkIdCounter = 0;
 
+
 /**
- * Batch multiple chunk updates into a single re-render.
- * Useful for updating multiple chunks at once without causing multiple re-renders.
+ * Groups multiple chunk updates into a single notification pass.
+ *
+ * Without batching, each `set()` call notifies subscribers immediately.
+ * Inside a `batch()`, all updates are collected and subscribers are notified
+ * once after the callback completes — even if multiple chunks were updated.
+ *
+ * Batches can be nested safely. Notifications only flush when the outermost
+ * batch completes.
+ *
+ * @param callback - A function containing one or more chunk `set()` calls.
+ *
+ * @example
+ * const x = chunk(0);
+ * const y = chunk(0);
+ *
+ * batch(() => {
+ *   x.set(1);
+ *   y.set(2);
+ * });
+ * // Subscribers of x and y are each notified once, not twice.
  */
 export function batch(callback: () => void) {
   const wasBatchingBefore = isBatching;
@@ -39,8 +115,8 @@ export function batch(callback: () => void) {
   } finally {
     if (!wasBatchingBefore) {
       isBatching = false;
-      const chunks = Array.from(dirtyChunks); // Snapshot to avoid mutation issues
-      dirtyChunks.clear(); // Clear early to prevent re-adds
+      const chunks = Array.from(dirtyChunks);
+      dirtyChunks.clear();
       chunks.forEach(id => {
         const chunk = chunkRegistry.get(id);
         if (chunk) chunk.notify();
@@ -49,14 +125,43 @@ export function batch(callback: () => void) {
   }
 }
 
-export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMiddleware<T>)[] = []): Chunk<T> {
-  if (initialValue === null) {
-    throw new Error("Initial value cannot be null.");
+
+/**
+ * Creates a reactive state unit — the core primitive of Stunk.
+ *
+ * A chunk holds a single value and notifies all subscribers whenever that
+ * value changes. Values are compared by reference (`===`) for primitives and
+ * by the result of middleware processing for objects — so setting the same
+ * value twice does not trigger subscribers.
+ *
+ * @param initialValue - The starting value. Cannot be `undefined`.
+ * @param config - Optional configuration for naming, middleware, and strict mode.
+ * @returns A `Chunk<T>` with `get()`, `set()`, `peek()`, `subscribe()`, `derive()`, `reset()`, and `destroy()`.
+ */
+export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T> {
+  const chunkId = chunkIdCounter++;
+  const chunkName = __DEV__
+    ? (config.name || `chunk_${chunkId}`)
+    : `chunk_${chunkId}`;
+  const middleware = config.middleware || [];
+  const strict = config.strict ?? false;
+
+  if (initialValue === undefined) {
+    throw new Error(`[${chunkName}] Initial value cannot be undefined.`);
   }
+
+  // Capture the allowed key set once at creation time — O(1) lookup on every set()
+  // Only applies to plain objects, not arrays, primitives, or null
+  const allowedKeys: Set<string> | null =
+    __DEV__ &&
+      initialValue !== null &&
+      typeof initialValue === 'object' &&
+      !Array.isArray(initialValue)
+      ? new Set(Object.keys(initialValue as object))
+      : null;
 
   let value = initialValue;
   const subscribers = new Set<Subscriber<T>>();
-  const chunkId = chunkIdCounter++;
 
   const notify = () => {
     subscribers.forEach(subscriber => subscriber(value));
@@ -65,7 +170,10 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
   chunkRegistry.set(chunkId, { notify });
 
   const notifySubscribers = () => {
-    if (subscribers.size === 0) return; // Skip if no subscribers
+    if (subscribers.size === 0) {
+      chunkRegistry.delete(chunkId);
+      return;
+    }
     if (isBatching) {
       dirtyChunks.add(chunkId);
     } else {
@@ -73,19 +181,49 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
     }
   };
 
-  const get = () => value;
+  const get = () => {
+    trackChunkAccess(chunkInstance);
+    return value;
+  };
+
+  const peek = () => value;
 
   const set = (newValueOrUpdater: T | ((currentValue: T) => T)) => {
     let newValue: T;
 
     if (typeof newValueOrUpdater === 'function') {
-      const updaterFn = newValueOrUpdater as (currentValue: T) => T;
-      newValue = updaterFn(value);
+      newValue = (newValueOrUpdater as (currentValue: T) => T)(value);
     } else {
       newValue = newValueOrUpdater;
     }
 
-    validateObjectShape(value, newValue);
+    if (__DEV__) {
+      // Shape validation — catches type mismatches and missing/extra keys
+      validateObjectShape(value, newValue);
+
+      // Strict key enforcement — throws or warns on unknown keys
+      if (
+        allowedKeys &&
+        newValue !== null &&
+        typeof newValue === 'object' &&
+        !Array.isArray(newValue)
+      ) {
+        const extraKeys = Object.keys(newValue as object).filter(
+          k => !allowedKeys.has(k)
+        );
+
+        if (extraKeys.length > 0) {
+          const msg = `[${chunkName}] Unexpected keys in set(): ${extraKeys.join(', ')}. ` +
+            `These keys were not present in the initial shape.`;
+
+          if (strict) {
+            throw new Error(`🚨 Stunk: ${msg}`);
+          } else {
+            console.error(`🚨 Stunk: ${msg}`);
+          }
+        }
+      }
+    }
 
     const processedValue = processMiddleware(newValue, middleware);
 
@@ -100,7 +238,6 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
       throw new Error("Callback must be a function.");
     }
     subscribers.add(callback);
-    callback(value);
     return () => subscribers.delete(callback);
   };
 
@@ -116,7 +253,7 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
     chunkRegistry.delete(chunkId);
   };
 
-  const derive = <D>(fn: (value: T) => D) => {
+  const derive = <D>(fn: (value: T) => D): ReadOnlyChunk<D> => {
     if (typeof fn !== "function") {
       throw new Error("Derive function must be a function.");
     }
@@ -129,7 +266,6 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
       derivedChunk.set(newDerivedValue);
     });
 
-    // Add a cleanup method to the derived chunk
     const originalDestroy = derivedChunk.destroy;
     derivedChunk.destroy = () => {
       unsubscribe();
@@ -139,5 +275,10 @@ export function chunk<T>(initialValue: T, middleware: (Middleware<T> | NamedMidd
     return derivedChunk;
   };
 
-  return { get, set, subscribe, derive, reset, destroy };
+  const chunkInstance: Chunk<T> = {
+    get, peek, set, subscribe, derive, reset, destroy,
+    ...__DEV__ && { [Symbol.for('stunk.meta')]: { name: chunkName, id: chunkId } }
+  };
+
+  return chunkInstance;
 }

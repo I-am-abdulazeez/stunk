@@ -1,6 +1,10 @@
 {
   "name": "stunk",
+<<<<<<< HEAD
   "version": "2.8.1",
+=======
+  "version": "3.0.0-beta.1",
+>>>>>>> v3
   "description": "Stunk is a lightweight, framework-agnostic state management library for JavaScript and TypeScript. It uses chunk-based state units for efficient updates, reactivity, and performance optimization in React, Vue(WIP), Svelte(Coming soon), and Vanilla JS/TS applications.",
   "scripts": {
     "build": "tsup",
@@ -38,13 +42,13 @@
       "types": "./dist/middleware/index.d.ts",
       "import": "./dist/middleware/index.js"
     },
+    "./query": {
+      "types": "./dist/query/index.d.ts",
+      "import": "./dist/query/index.js"
+    },
     "./react": {
       "types": "./dist/use-react/index.d.ts",
       "import": "./dist/use-react/index.js"
-    },
-    "./vue": {
-      "types": "./dist/use-vue/index.d.ts",
-      "import": "./dist/use-vue/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -68,6 +72,9 @@
     "reusable state",
     "efficient state updates",
     "performance optimization",
+    "async-state",
+    "query",
+    "mutation",
     "stunk",
     "chunk"
   ],

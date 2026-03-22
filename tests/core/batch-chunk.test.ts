@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { chunk, batch } from '../src/core/core';
+import { chunk, batch } from '../../src/core/core';
 
 
 describe('Chunk batch updates', () => {
@@ -8,12 +8,12 @@ describe('Chunk batch updates', () => {
     const callback = vi.fn();
 
     countChunk.subscribe(callback);
-    callback.mockClear(); // Clear initial subscription call
+    callback.mockClear();
 
     batch(() => {
       countChunk.set(1);
       countChunk.set(2);
-      countChunk.set(3); // Should only notify once
+      countChunk.set(3);
     });
 
     expect(callback).toHaveBeenCalledTimes(1);
@@ -28,7 +28,7 @@ describe('Chunk batch updates', () => {
     callback.mockClear();
 
     batch(() => {
-      countChunk.set(1); // Should not notify yet
+      countChunk.set(1);
       batch(() => {
         countChunk.set(2);
         countChunk.set(3);
@@ -48,9 +48,8 @@ describe('Chunk batch updates', () => {
 
     expect(() => {
       batch(() => {
-        countChunk.set(1); // Should trigger callback
+        countChunk.set(1);
         throw new Error('Test error');
-        // countChunk.set(2); // Unreachable
       });
     }).toThrow('Test error');
 
@@ -92,7 +91,6 @@ describe('Chunk batch updates', () => {
     sourceChunk.subscribe(sourceCallback);
     derivedChunk.subscribe(derivedCallback);
 
-    // Clear mocks after initial calls
     sourceCallback.mockClear();
     derivedCallback.mockClear();
 
@@ -106,5 +104,49 @@ describe('Chunk batch updates', () => {
     expect(derivedCallback).toHaveBeenCalledTimes(1);
     expect(sourceCallback).toHaveBeenLastCalledWith(3);
     expect(derivedCallback).toHaveBeenLastCalledWith(6);
+  });
+
+  it('should not throw when batching a chunk with no subscribers', () => {
+    const c = chunk(0);
+
+    expect(() => {
+      batch(() => {
+        c.set(1);
+        c.set(2);
+        c.set(3);
+      });
+    }).not.toThrow();
+
+    expect(c.get()).toBe(3);
+  });
+
+  it('should work correctly with non-object chunks inside a batch', () => {
+    const numChunk = chunk(0);
+    const strChunk = chunk('hello');
+    const boolChunk = chunk(false);
+
+    const numCb = vi.fn();
+    const strCb = vi.fn();
+    const boolCb = vi.fn();
+
+    numChunk.subscribe(numCb);
+    strChunk.subscribe(strCb);
+    boolChunk.subscribe(boolCb);
+
+    batch(() => {
+      numChunk.set(42);
+      strChunk.set('world');
+      boolChunk.set(true);
+    });
+
+    expect(numCb).toHaveBeenCalledTimes(1);
+    expect(strCb).toHaveBeenCalledTimes(1);
+    expect(boolCb).toHaveBeenCalledTimes(1);
+    expect(numCb).toHaveBeenCalledWith(42);
+    expect(strCb).toHaveBeenCalledWith('world');
+    expect(boolCb).toHaveBeenCalledWith(true);
+    expect(numChunk.get()).toBe(42);
+    expect(strChunk.get()).toBe('world');
+    expect(boolChunk.get()).toBe(true);
   });
 });

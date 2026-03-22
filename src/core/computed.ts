@@ -1,89 +1,119 @@
-import { Chunk, chunk } from "./core";
-
+import { chunk, trackDependencies, ReadOnlyChunk } from "./core";
 import { shallowEqual } from "../utils";
 
-// Helper type to extract the value type from a Chunk
-export type ChunkValue<T> = T extends Chunk<infer U> ? U : never;
-
-// Helper type to transform an array of Chunks into an array of their value types
-export type DependencyValues<T extends Chunk<any>[]> = {
-  [K in keyof T]: T[K] extends Chunk<any> ? ChunkValue<T[K]> : never;
-};
-
-export interface Computed<T> extends Chunk<T> {
-  /**
-  * Checks if the computed value needs to be recalculated due to dependency changes.
-  * @returns True if the computed value is dirty, false otherwise.
-  */
+export interface Computed<T> extends ReadOnlyChunk<T> {
+  /** Checks if the computed value needs to be recalculated due to dependency changes. */
   isDirty: () => boolean;
   /** Manually forces recalculation of the computed value from its dependencies. */
   recompute: () => void;
 }
 
-export function computed<TDeps extends Chunk<any>[], TResult>(
-  dependencies: [...TDeps],
-  computeFn: (...args: DependencyValues<TDeps>) => TResult
-): Computed<TResult> {
-  const dependencyValues = dependencies.map(dep => dep.get());
-  let cachedValue = computeFn(...dependencyValues as DependencyValues<TDeps>);
+/**
+ * Creates a derived value that automatically tracks its dependencies and
+ * recomputes lazily when any of them change.
+ *
+ * Dependencies are discovered automatically — any chunk whose `.get()` is
+ * called inside `computeFn` is tracked. Use `.peek()` inside the function
+ * to read a value without tracking it as a dependency.
+ *
+ * The computed value is cached and only recalculated when a dependency
+ * changes and the value is accessed (lazy) or when active subscribers exist
+ * (eager). Object values are compared with shallow equality to prevent
+ * unnecessary subscriber notifications.
+ *
+ * @param computeFn - A pure function that derives the computed value.
+ * @returns A read-only `Computed<T>` with `isDirty()`, `recompute()`, `derive()`, `subscribe()`, `peek()`, and `destroy()`.
+ */
+export function computed<T>(computeFn: () => T): Computed<T> {
+  const [initialValue, initialDeps] = trackDependencies(computeFn);
+
+  let cachedValue = initialValue;
+  let dependencies = initialDeps;
+  let isDirty = false;
+  let unsubs: Array<() => void> = [];
+  let subscriberCount = 0;
 
   const computedChunk = chunk(cachedValue);
-  const originalSet = computedChunk.set;
 
-  let isDirty = false;
+  const _recompute = () => {
+    if (!isDirty) return;
+    isDirty = false;
 
-  // Direct synchronous recomputation
-  const recompute = () => {
-    let hasChanges = false;
+    const [newValue, newDeps] = trackDependencies(computeFn);
 
-    for (let i = 0; i < dependencies.length; i++) {
-      const newValue = dependencies[i].get();
-      if (newValue !== dependencyValues[i]) {
-        dependencyValues[i] = newValue;
-        hasChanges = true;
-      }
+    // Re-subscribe if dependencies have changed
+    if (!shallowEqual(newDeps, dependencies)) {
+      unsubs.forEach(unsub => unsub());
+      unsubs = newDeps.map(dep =>
+        dep.subscribe(() => {
+          isDirty = true;
+          if (subscriberCount > 0) _recompute();
+        })
+      );
+      dependencies = newDeps;
     }
 
-    if (hasChanges) {
-      const newValue = computeFn(...dependencyValues as DependencyValues<TDeps>);
-      // Fast path for primitives only. Avoids shallowEqual for performance.
-      if (newValue !== cachedValue) {
-        // Only use shallowEqual for objects when needed
-        if (typeof newValue !== 'object' || typeof cachedValue !== 'object' || !shallowEqual(newValue, cachedValue)) {
-          cachedValue = newValue;
-          originalSet(newValue);
-        }
-      }
-      isDirty = false;
+    const shouldUpdate =
+      typeof newValue === 'object' && typeof cachedValue === 'object'
+        ? !shallowEqual(newValue, cachedValue)
+        : newValue !== cachedValue;
+
+    if (shouldUpdate) {
+      cachedValue = newValue;
+      computedChunk.set(newValue);
     }
   };
 
-  const unsubs = dependencies.map(dep =>
+  // Initial subscriptions to dependencies
+  unsubs = dependencies.map(dep =>
     dep.subscribe(() => {
       isDirty = true;
-      recompute();
+      if (subscriberCount > 0) _recompute();
     })
   );
 
-  return {
-    ...computedChunk,
+  // Forward-declare so derive() can reference the lazy get()
+  let computedInstance: Computed<T>;
+
+  computedInstance = {
     get: () => {
-      if (isDirty) recompute();
-      return cachedValue;
+      if (isDirty) _recompute();
+      return computedChunk.get();
     },
-    recompute,
-    isDirty: () => isDirty,
-    set: () => { throw new Error('Cannot set values directly on computed. Modify the source chunk instead.'); },
-    reset: () => {
-      dependencies.forEach(dep => {
-        if (typeof dep.reset === 'function') {
-          dep.reset();
-        }
-      });
+
+    peek: () => cachedValue,
+
+    subscribe: (callback) => {
+      const unsubscribe = computedChunk.subscribe(callback);
+      subscriberCount++;
+      return () => {
+        subscriberCount = Math.max(0, subscriberCount - 1);
+        unsubscribe();
+      };
+    },
+
+    derive: <D>(fn: (value: T) => D) => {
+      // Incrementing subscriberCount ensures the parent recomputes eagerly
+      // when its dependencies change — so computedChunk stays fresh for
+      // the derived computed to read from
+      subscriberCount++;
+      const derivedComputed = computed(() => fn(computedInstance.get()));
+      return derivedComputed;
+    },
+
+    recompute: () => {
       isDirty = true;
-      recompute();
-      return cachedValue;
+      _recompute();
     },
-    destroy: () => { unsubs.forEach(unsub => unsub()); computedChunk.destroy?.(); }
+
+    isDirty: () => isDirty,
+
+    destroy: () => {
+      unsubs.forEach(unsub => unsub());
+      computedChunk.destroy();
+      subscriberCount = 0;
+    },
   };
+
+  return computedInstance;
 }

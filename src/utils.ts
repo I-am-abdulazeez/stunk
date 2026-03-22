@@ -1,10 +1,13 @@
-import { chunk, Chunk, Middleware, NamedMiddleware } from "./core/core";
+import { Chunk, Middleware, NamedMiddleware } from "./core/core";
 
-import { AsyncChunk } from "./core/async-chunk";
-import { CombinedData, CombinedState } from "./core/types";
+export interface ChunkMeta {
+  name: string;
+  id: number;
+}
 
 export function isValidChunkValue(value: unknown): boolean {
-  return value !== null;
+  // null is a valid chunk value in v3 (undefined is not)
+  return value !== undefined;
 }
 
 export function isValidChunk<T>(value: unknown, validateBehavior = false): value is Chunk<T> {
@@ -36,6 +39,7 @@ export function isChunk<T>(value: unknown): value is Chunk<T> {
     'set',
     'subscribe',
     'derive',
+    'peek',
     'reset',
     'destroy'
   ] as const;
@@ -45,18 +49,15 @@ export function isChunk<T>(value: unknown): value is Chunk<T> {
   );
 }
 
-export function once<T>(fn: () => T): () => T {
-  let called = false;
-  let result: T;
-  return () => {
-    if (!called) {
-      result = fn();
-      called = true;
-    }
-    return result;
-  };
-};
+export function processMiddleware<T>(
+  initialValue: T,
+  middleware: (Middleware<T> | NamedMiddleware<T>)[]
+): T {
+  if (initialValue === undefined) {
+    throw new Error("Value cannot be undefined.");
+  }
 
+<<<<<<< HEAD
 /**
  * Combines multiple async chunks into a single chunk.
  * The combined chunk tracks loading, error, and data states from all source chunks.
@@ -124,6 +125,11 @@ export function processMiddleware<T>(
 ): T {
   if (initialValue === null) {
     throw new Error("Value cannot be null.");
+=======
+  // null is a valid value in v3 — pass it through unchanged if no middleware
+  if (middleware.length === 0) {
+    return initialValue;
+>>>>>>> v3
   }
 
   let currentValue = initialValue;
@@ -142,7 +148,12 @@ export function processMiddleware<T>(
       // If undefined is returned, stop processing the middleware chain
       if (result === undefined) break;
 
+<<<<<<< HEAD
       // Null values are not allowed
+=======
+      // Null returned from middleware is not allowed — middleware must
+      // return a value or undefined to stop the chain
+>>>>>>> v3
       if (result === null) {
         throw new Error(`Middleware "${middlewareName}" returned null value.`);
       }
@@ -156,6 +167,7 @@ export function processMiddleware<T>(
 
   return currentValue;
 }
+
 
 export function shallowEqual<T>(a: T, b: T): boolean {
   if (a === b) {
@@ -194,34 +206,114 @@ export function shallowEqual<T>(a: T, b: T): boolean {
     return true;
   }
 
-  // For primitive types, return false. Strict equality already handled by initial check
   return false;
 }
 
-export function validateObjectShape<T>(original: T, updated: T, path = '') {
-  if (typeof original === 'object' && original !== null && typeof updated === 'object' && updated !== null) {
-    if (Array.isArray(original) && Array.isArray(updated)) {
-      if (original.length > 0 && typeof original[0] === 'object') {
-        for (let i = 0; i < updated.length; i++) {
-          validateObjectShape(original[0], updated[i], `${path}[${i}]`);
-        }
-      }
-    } else if (!Array.isArray(original) && !Array.isArray(updated)) {
-      const originalKeys = Object.keys(original as object);
-      const updatedKeys = Object.keys(updated as object);
-      const extraKeys = updatedKeys.filter(key => !originalKeys.includes(key));
+export function validateObjectShape<T>(
+  original: T,
+  updated: T,
+  path = '',
+  options: { checkMissing?: boolean; checkTypes?: boolean } = {}
+) {
+  const { checkMissing = true, checkTypes = true } = options;
 
-      if (extraKeys.length > 0) {
-        const fullPath = path || 'root';
-        console.error(`🚨 Stunk: Unknown properties detected at '${fullPath}': ${extraKeys.join(', ')}. This might cause bugs.`);
-        console.error('Expected keys:', originalKeys);
-        console.error('Received keys:', updatedKeys);
-      }
+  if (original === null || updated === null) {
+    return;
+  }
 
-      // Recurse into common keys
-      for (const key of originalKeys) {
-        validateObjectShape((original as any)[key], (updated as any)[key], path ? `${path}.${key}` : key);
+  // Allow undefined → T transitions — undefined is used as "not yet set"
+  // (e.g. lastFetched starts as undefined then becomes a number after fetch)
+  if (original === undefined || updated === undefined) {
+    return;
+  }
+
+  if (typeof original !== typeof updated) {
+    const fullPath = path || 'root';
+    console.error(
+      `🚨 Stunk: Type mismatch at '${fullPath}'. ` +
+      `Expected ${typeof original}, got ${typeof updated}.`
+    );
+    return;
+  }
+
+  if (typeof original !== 'object' || typeof updated !== 'object') {
+    return;
+  }
+
+  if (Array.isArray(original) !== Array.isArray(updated)) {
+    const fullPath = path || 'root';
+    console.error(
+      `🚨 Stunk: Type mismatch at '${fullPath}'. ` +
+      `Expected ${Array.isArray(original) ? 'array' : 'object'}, ` +
+      `got ${Array.isArray(updated) ? 'array' : 'object'}.`
+    );
+    return;
+  }
+
+  if (Array.isArray(original) && Array.isArray(updated)) {
+    if (original.length > 0 && typeof original[0] === 'object') {
+      for (let i = 0; i < updated.length; i++) {
+        validateObjectShape(
+          original[0],
+          updated[i],
+          `${path}[${i}]`,
+          options
+        );
       }
     }
+    return;
   }
+
+  const originalKeys = Object.keys(original as object);
+  const updatedKeys = Object.keys(updated as object);
+
+  const extraKeys = updatedKeys.filter(key => !originalKeys.includes(key));
+  if (extraKeys.length > 0) {
+    const fullPath = path || 'root';
+    console.error(
+      `🚨 Stunk: Unknown properties at '${fullPath}': ${extraKeys.join(', ')}`
+    );
+    console.error('Expected keys:', originalKeys);
+    console.error('Received keys:', updatedKeys);
+  }
+
+  if (checkMissing) {
+    const missingKeys = originalKeys.filter(key => !updatedKeys.includes(key));
+    if (missingKeys.length > 0) {
+      const fullPath = path || 'root';
+      console.error(
+        `🚨 Stunk: Missing properties at '${fullPath}': ${missingKeys.join(', ')}`
+      );
+    }
+  }
+
+  for (const key of originalKeys) {
+    const originalValue = (original as any)[key];
+    const updatedValue = (updated as any)[key];
+
+    // Skip undefined → T or T → null transitions — both are valid v3 patterns
+    if (originalValue === undefined || updatedValue === undefined || updatedValue === null) {
+      continue;
+    }
+
+    if (checkTypes &&
+      typeof originalValue !== 'object' &&
+      typeof originalValue !== typeof updatedValue) {
+      console.error(
+        `🚨 Stunk: Type mismatch at '${path ? path + '.' : ''}${key}'. ` +
+        `Expected ${typeof originalValue}, got ${typeof updatedValue}.`
+      );
+    }
+
+    validateObjectShape(
+      originalValue,
+      updatedValue,
+      path ? `${path}.${key}` : key,
+      options
+    );
+  }
+}
+
+export function getChunkMeta<T>(chunk: Chunk<T>): ChunkMeta | undefined {
+  return (chunk as any)[Symbol.for('stunk.meta')];
 }
