@@ -18,7 +18,7 @@
     "type": "git",
     "url": "https://github.com/I-am-abdulazeez/stunk"
   },
-  "homepage": "https://stunk.vercel.app/",
+  "homepage": "https://stunk.dev/",
   "bugs": {
     "url": "https://github.com/I-am-abdulazeez/stunk/issues"
   },
@@ -46,10 +46,6 @@
       "types": "./dist/use-react/index.d.ts",
       "import": "./dist/use-react/index.js"
     },
-    "./vue": {
-      "types": "./dist/use-vue/index.d.ts",
-      "import": "./dist/use-vue/index.js"
-    },
     "./package.json": "./package.json"
   },
   "keywords": [
@@ -72,6 +68,9 @@
     "reusable state",
     "efficient state updates",
     "performance optimization",
+    "async-state",
+    "query",
+    "mutation",
     "stunk",
     "chunk"
   ],
