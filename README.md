@@ -29,73 +29,13 @@ pnpm add stunk
 
 📖 [Read the docs](https://stunk.dev)
 
-<<<<<<< HEAD
-[Stunk](https://stunk.dev/)
-=======
 ---
->>>>>>> v3
 
 ## Core State
 
 ```ts
 import { chunk } from "stunk";
 
-<<<<<<< HEAD
-// Create a chunk holding a number
-const count = chunk<number>(0);
-
-// Create a chunk holding a string
-const name = chunk<string>("Stunky, chunky");
-```
-
-👉 [See full explanation in docs](https://stunk.dev/chunk.html)
-
-## Interacting with a Chunk
-
-```typescript
-// Get value
-console.log(count.get()); // 0
-
-// Set a new value
-count.set(10);
-
-// Update based on the previous value
-count.set((prev: number) => prev + 1);
-
-// Reset to the initial value
-count.reset();
-
-// Destroy the chunk and all its subscribers.
-count.destroy();
-```
-
-👉 [See full explanation in docs](https://stunk.dev/chunk.html)
-
-## React via useChunk
-
-The `useChunk` hook, enables components to reactively read and update state from a Chunk. The counter example below depicts
-
-```typescript
-import { chunk } from "stunk";
-import { useChunk } from "stunk/react";
-
-const count = chunk<number>(0);
-
-const Counter = () => {
-  const [value, set, reset] = useChunk(count);
-
-  return (
-    <div>
-      <p>Count: {value}</p>
-      <button onClick={() => set((prev: number) => prev + 1)}>Increment</button>
-      <button onClick={() => reset()}>Reset</button>
-    </div>
-  );
-};
-```
-
-👉 [See full explanation in docs](https://stunk.dev/useChunk.html)
-=======
 const count = chunk(0);
 
 count.get();                    // 0
@@ -107,7 +47,6 @@ count.destroy();                // clear all subscribers
 ```
 
 ---
->>>>>>> v3
 
 ## Computed — auto dependency tracking
 
@@ -212,61 +151,8 @@ configureQuery({
 import { chunk } from "stunk";
 import { logger, nonNegativeValidator } from "stunk/middleware";
 
-<<<<<<< HEAD
-const count = chunk<number>(0);
-
-const DoubledCount = () => {
-  const double = useDerive(count, (value: number) => value * 2);
-
-  return <p>Double: {double}</p>;
-};
-```
-
-👉 [See full explanation in docs](https://stunk.dev/useDerive.html)
-
-## React via useComputed
-
-Hook that derives a computed value from one or more Chunks. It automatically re-evaluates whenever any of its dependencies change, ensuring efficient and reactive updates.
-
-```typescript
-import { chunk } from "stunk";
-import { useComputed } from "stunk/react";
-
-const count = chunk<number>(2);
-const multiplier = chunk<number>(3);
-
-const ComputedExample = () => {
-  const product = useComputed(
-    [count, multiplier],
-    (c: number, m: number) => c * m
-  );
-
-  return <p>Product: {product}</p>;
-};
-```
-
-👉 [See full explanation in docs](https://stunk.dev/useComputed.html)
-
-## React via useAsyncChunk
-
-Hook that manages that manages asynchronous state. It offers built-in reactivity, handling loading, error, and data states, ensuring the UI stays in sync with asynchronous operations.
-
-```typescript
-import { asyncChunk } from "stunk";
-import { useAsyncChunk } from "stunk/react";
-
-interface User {
-  name: string;
-  email: string;
-}
-
-const fetchUser = asyncChunk<User>(async () => {
-  const res = await fetch("https://jsonplaceholder.typicode.com/users/1");
-  return res.json();
-=======
 const score = chunk(0, {
   middleware: [logger(), nonNegativeValidator]
->>>>>>> v3
 });
 
 score.set(10); // logs: "Setting value: 10"
@@ -323,14 +209,8 @@ function Counter() {
 
   return (
     <div>
-<<<<<<< HEAD
-      <h2>{data?.name}</h2>
-      <p>{data?.email}</p>
-      <button onClick={reload}>Reload</button>
-=======
       <p>Count: {count} — Doubled: {doubled}</p>
       <button onClick={() => setCount((n) => n + 1)}>+</button>
->>>>>>> v3
     </div>
   );
 }
@@ -353,11 +233,7 @@ function CreatePostForm() {
 }
 ```
 
-<<<<<<< HEAD
-👉 [See full explanation in docs](https://stunk.dev/useAysncChunk.html)
-=======
 ---
->>>>>>> v3
 
 ## Package exports
 
@@ -368,36 +244,7 @@ function CreatePostForm() {
 | `stunk/query`      | `asyncChunk`, `infiniteAsyncChunk`, `combineAsyncChunks`, `mutation`, `configureQuery` |
 | `stunk/middleware` | `history`, `persist`, `logger`, `nonNegativeValidator`          |
 
-<<<<<<< HEAD
-```typescript
-import { chunk } from "stunk";
-import { useChunkValue } from "stunk/react";
-
-const count = chunk<number>(0);
-
-const CounterDisplay = () => {
-  const value = useChunkValue(count);
-
-  return <p>Count: {value}</p>;
-};
-```
-
-👉 [See full explanation in docs](https://stunk.dev/read-only-values.html)
-
-Live Examples:
-
-👉 [Visit](https://stunk-examples.dev/)
-
-Coding Examples:
-
-👉 [Visit](https://stunk.dev/examples.html)
-
-Further Examples:
-
-👉 [Visit](https://github.com/I-am-abdulazeez/stunk-examples/)
-=======
 ---
->>>>>>> v3
 
 ## Contributing
 
