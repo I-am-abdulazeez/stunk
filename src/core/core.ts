@@ -42,19 +42,6 @@ export interface ReadOnlyChunk<T> extends Omit<Chunk<T>, 'set' | 'reset'> {
 // DEPENDENCY TRACKING SYSTEM (for computed)
 let activeEffect: Set<Chunk<any>> | null = null;
 
-export function trackDependencies<T>(fn: () => T): [T, Chunk<any>[]] {
-  const deps = new Set<Chunk<any>>();
-  const previousEffect = activeEffect;
-  activeEffect = deps;
-
-  try {
-    const result = fn();
-    return [result, Array.from(deps)];
-  } finally {
-    activeEffect = previousEffect;
-  }
-}
-
 /**
  * Executes a function while tracking which chunks call `.get()` inside it.
  * Used internally by `computed()` to discover dependencies automatically.
@@ -71,6 +58,19 @@ export function trackDependencies<T>(fn: () => T): [T, Chunk<any>[]] {
  * // result → 3
  * // deps   → [a, b]
  */
+export function trackDependencies<T>(fn: () => T): [T, Chunk<any>[]] {
+  const deps = new Set<Chunk<any>>();
+  const previousEffect = activeEffect;
+  activeEffect = deps;
+
+  try {
+    const result = fn();
+    return [result, Array.from(deps)];
+  } finally {
+    activeEffect = previousEffect;
+  }
+}
+
 function trackChunkAccess(chunk: Chunk<any>) {
   if (activeEffect) {
     activeEffect.add(chunk);
@@ -83,7 +83,6 @@ let isBatching = false;
 const dirtyChunks = new Set<number>();
 const chunkRegistry = new Map<number, { notify: () => void }>();
 let chunkIdCounter = 0;
-
 
 /**
  * Groups multiple chunk updates into a single notification pass.
@@ -115,12 +114,11 @@ export function batch(callback: () => void) {
   } finally {
     if (!wasBatchingBefore) {
       isBatching = false;
-      const chunks = Array.from(dirtyChunks);
-      dirtyChunks.clear();
-      chunks.forEach(id => {
+      dirtyChunks.forEach(id => {
         const chunk = chunkRegistry.get(id);
         if (chunk) chunk.notify();
       });
+      dirtyChunks.clear();
     }
   }
 }
@@ -137,6 +135,25 @@ export function batch(callback: () => void) {
  * @param initialValue - The starting value. Cannot be `undefined`.
  * @param config - Optional configuration for naming, middleware, and strict mode.
  * @returns A `Chunk<T>` with `get()`, `set()`, `peek()`, `subscribe()`, `derive()`, `reset()`, and `destroy()`.
+ *
+ * @throws If `initialValue` is `undefined`.
+ *
+ * @example
+ * const count = chunk(0);
+ * count.get();        // 0
+ * count.set(1);       // subscribers notified
+ * count.set(n => n + 1); // updater function
+ * count.reset();      // back to 0
+ *
+ * @example
+ * // Named chunk with strict mode — throws on unknown keys in dev
+ * const user = chunk({ name: 'Alice', age: 30 }, { name: 'user', strict: true });
+ *
+ * @example
+ * // With middleware
+ * const positive = chunk(0, {
+ *   middleware: [nonNegativeValidator]
+ * });
  */
 export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T> {
   const chunkId = chunkIdCounter++;
