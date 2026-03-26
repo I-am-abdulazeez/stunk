@@ -22,8 +22,6 @@
   "bugs": {
     "url": "https://github.com/I-am-abdulazeez/stunk/issues"
   },
-  "main": "dist/index.js",
-  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist"
@@ -31,8 +29,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     },
     "./middleware": {
       "types": "./dist/middleware/index.d.ts",
