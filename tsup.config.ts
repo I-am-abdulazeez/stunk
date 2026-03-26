@@ -4,7 +4,7 @@ export default defineConfig([
   // Main bundle — core, utilities, types
   {
     entry: ['src/index.ts'],
-    format: ['esm', 'cjs'],
+    format: ['esm'],
     dts: true,
     clean: true,
     minify: true,
@@ -13,15 +13,12 @@ export default defineConfig([
     treeshake: true,
     splitting: false,
     target: 'es2020',
-    env: {
-      NODE_ENV: 'production',
-    },
     define: {
       __DEV__: 'false',
     },
   },
 
-  // Subpath entries — middleware, query, react, vue
+  // Subpath entries — middleware, query, react
   {
     entry: {
       'middleware/index': 'src/middleware/index.ts',
@@ -29,7 +26,7 @@ export default defineConfig([
       'query/index': 'src/query/index.ts',
       // 'use-vue/index': 'src/use-vue/index.ts',
     },
-    format: ['esm', 'cjs'],
+    format: ['esm'],
     dts: true,
     minify: true,
     sourcemap: false,
@@ -38,7 +35,7 @@ export default defineConfig([
     target: 'es2020',
     external: ['react', 'vue'],
     define: {
-      __DEV__: 'true',
+      __DEV__: 'false',
     },
-  }
+  },
 ])
