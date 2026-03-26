@@ -114,11 +114,15 @@ export function batch(callback: () => void) {
   } finally {
     if (!wasBatchingBefore) {
       isBatching = false;
-      dirtyChunks.forEach(id => {
-        const chunk = chunkRegistry.get(id);
-        if (chunk) chunk.notify();
-      });
+      // Snapshot dirty chunks BEFORE notifying — prevents mid-flush set() calls
+      // from being visited in the same flush pass (Set.forEach visits entries
+      // added during iteration, which would cause unexpected cascading notifications)
+      const toFlush = [...dirtyChunks];
       dirtyChunks.clear();
+      toFlush.forEach(id => {
+        const c = chunkRegistry.get(id);
+        if (c) c.notify();
+      });
     }
   }
 }
