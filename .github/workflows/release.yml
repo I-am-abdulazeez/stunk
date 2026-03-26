@@ -22,6 +22,7 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: pnpm install
@@ -34,7 +35,6 @@ jobs:
 
       - name: Publish to NPM
         run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.STUNK_TOKEN }}" > ~/.npmrc
           VERSION=$(node -p "require('./package.json').version")
           if npm show stunk@$VERSION > /dev/null 2>&1; then
             echo "Version $VERSION already exists on NPM. Skipping publish."
