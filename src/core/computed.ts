@@ -1,4 +1,4 @@
-import { chunk, trackDependencies, ReadOnlyChunk } from "./core";
+import { trackDependencies, ReadOnlyChunk, Chunk, Subscriber } from "./core";
 import { shallowEqual } from "../utils";
 
 export interface Computed<T> extends ReadOnlyChunk<T> {
@@ -29,89 +29,102 @@ export function computed<T>(computeFn: () => T): Computed<T> {
 
   let cachedValue = initialValue;
   let dependencies = initialDeps;
-  let isDirty = false;
+  let isDirtyFlag = false;
   let unsubs: Array<() => void> = [];
-  let subscriberCount = 0;
 
-  const computedChunk = chunk(cachedValue);
+  // Direct subscriber set — bypasses the full chunk pipeline (middleware,
+  // shape validation, chunk registry) since computed values need none of that
+  const subscribers = new Set<Subscriber<T>>();
+
+  const subscribeToDepS = (deps: Chunk<any>[]) =>
+    deps.map(dep =>
+      dep.subscribe(() => {
+        isDirtyFlag = true;
+        if (subscribers.size > 0) _recompute();
+      })
+    );
 
   const _recompute = () => {
-    if (!isDirty) return;
-    isDirty = false;
+    if (!isDirtyFlag) return;
+    isDirtyFlag = false;
 
+    // Always re-track — computeFn runs exactly ONCE here.
+    // trackDependencies runs the function inside a tracking context and
+    // returns both the new value and the deps discovered in that single run.
     const [newValue, newDeps] = trackDependencies(computeFn);
 
-    // Re-subscribe if dependencies have changed
-    if (!shallowEqual(newDeps, dependencies)) {
+    // Re-subscribe only if dep identity actually changed (dynamic dep graphs).
+    // For the common stable case this is a fast length check + reference
+    // equality — no shallowEqual needed on the dep array.
+    const depsChanged =
+      newDeps.length !== dependencies.length ||
+      newDeps.some((dep, i) => dep !== dependencies[i]);
+
+    if (depsChanged) {
       unsubs.forEach(unsub => unsub());
-      unsubs = newDeps.map(dep =>
-        dep.subscribe(() => {
-          isDirty = true;
-          if (subscriberCount > 0) _recompute();
-        })
-      );
+      unsubs = subscribeToDepS(newDeps);
       dependencies = newDeps;
     }
 
+    // Shallow equality for objects prevents unnecessary subscriber pings
+    // when the computed returns a new object with identical contents
     const shouldUpdate =
-      typeof newValue === 'object' && typeof cachedValue === 'object'
+      typeof newValue === 'object' && newValue !== null &&
+        typeof cachedValue === 'object' && cachedValue !== null
         ? !shallowEqual(newValue, cachedValue)
         : newValue !== cachedValue;
 
     if (shouldUpdate) {
       cachedValue = newValue;
-      computedChunk.set(newValue);
+      // Notify directly — no chunk.set() overhead
+      subscribers.forEach(sub => sub(cachedValue));
     }
   };
 
   // Initial subscriptions to dependencies
-  unsubs = dependencies.map(dep =>
-    dep.subscribe(() => {
-      isDirty = true;
-      if (subscriberCount > 0) _recompute();
-    })
-  );
+  unsubs = subscribeToDepS(dependencies);
 
-  // Forward-declare so derive() can reference the lazy get()
+  // Forward-declared so derive() can reference the lazy get()
   let computedInstance: Computed<T>;
 
   computedInstance = {
     get: () => {
-      if (isDirty) _recompute();
-      return computedChunk.get();
+      if (isDirtyFlag) _recompute();
+      return cachedValue;
     },
 
     peek: () => cachedValue,
 
     subscribe: (callback) => {
-      const unsubscribe = computedChunk.subscribe(callback);
-      subscriberCount++;
+      subscribers.add(callback);
       return () => {
-        subscriberCount = Math.max(0, subscriberCount - 1);
-        unsubscribe();
+        subscribers.delete(callback);
       };
     },
 
     derive: <D>(fn: (value: T) => D) => {
-      // Incrementing subscriberCount ensures the parent recomputes eagerly
-      // when its dependencies change — so computedChunk stays fresh for
-      // the derived computed to read from
-      subscriberCount++;
+      // A sentinel subscription keeps the parent in eager mode so
+      // cachedValue stays fresh for the derived computed to read from
+      const sentinelUnsub = computedInstance.subscribe(() => { });
       const derivedComputed = computed(() => fn(computedInstance.get()));
+      const originalDestroy = derivedComputed.destroy;
+      derivedComputed.destroy = () => {
+        sentinelUnsub();
+        originalDestroy();
+      };
       return derivedComputed;
     },
 
     recompute: () => {
-      isDirty = true;
+      isDirtyFlag = true;
       _recompute();
     },
 
-    isDirty: () => isDirty,
+    isDirty: () => isDirtyFlag,
 
     destroy: () => {
       unsubs.forEach(unsub => unsub());
-      computedChunk.destroy();
-      subscriberCount = 0;
+      subscribers.clear();
     },
   };
 
