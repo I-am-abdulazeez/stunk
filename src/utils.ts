@@ -193,7 +193,11 @@ export function validateObjectShape<T>(
   const originalKeys = Object.keys(original as object);
   const updatedKeys = Object.keys(updated as object);
 
-  const extraKeys = updatedKeys.filter(key => !originalKeys.includes(key));
+  // Use Sets for O(n) lookup instead of Array.includes() which is O(n²)
+  const originalSet = new Set(originalKeys);
+  const updatedSet = new Set(updatedKeys);
+
+  const extraKeys = updatedKeys.filter(key => !originalSet.has(key));
   if (extraKeys.length > 0) {
     const fullPath = path || 'root';
     console.error(
@@ -204,7 +208,7 @@ export function validateObjectShape<T>(
   }
 
   if (checkMissing) {
-    const missingKeys = originalKeys.filter(key => !updatedKeys.includes(key));
+    const missingKeys = originalKeys.filter(key => !updatedSet.has(key));
     if (missingKeys.length > 0) {
       const fullPath = path || 'root';
       console.error(
