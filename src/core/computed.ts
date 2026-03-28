@@ -81,11 +81,11 @@ export function computed<T>(computeFn: () => T): Computed<T> {
 
     if (shouldUpdate) {
       cachedValue = newValue;
-      // Notify own subscribers directly — no chunk pipeline
-      ownSubscribers.forEach(sub => sub(cachedValue));
-      // Update internalChunk so downstream computed instances
-      // subscribed via trackDependencies get notified
+      // Update internalChunk FIRST so get() returns the fresh value
+      // when a subscriber calls get() inside their callback
       internalChunk.set(newValue);
+      // Then notify own subscribers directly — no chunk pipeline overhead
+      ownSubscribers.forEach(sub => sub(cachedValue));
     }
   };
 
