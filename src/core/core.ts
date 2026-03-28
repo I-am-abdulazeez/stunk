@@ -171,8 +171,8 @@ export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T>
     throw new Error(`[${chunkName}] Initial value cannot be undefined.`);
   }
 
-  // Capture the allowed key set once at creation time — O(1) lookup on every set()
-  // Only applies to plain objects, not arrays, primitives, or null
+  // Only build the allowed key set when actually needed — plain objects only.
+  // null, arrays, and primitives are all excluded.
   const allowedKeys: Set<string> | null =
     __DEV__ &&
       initialValue !== null &&
@@ -180,6 +180,12 @@ export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T>
       !Array.isArray(initialValue)
       ? new Set(Object.keys(initialValue as object))
       : null;
+
+  // Fast path flag — skip all dev validation for the common case of a plain
+  // chunk with no config (no name, no middleware, no strict mode). Most chunks
+  // in a real app fall into this category.
+  const hasMiddleware = middleware.length > 0;
+  const hasDevChecks = __DEV__ && (strict || allowedKeys !== null);
 
   let value = initialValue;
   const subscribers = new Set<Subscriber<T>>();
@@ -218,11 +224,11 @@ export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T>
       newValue = newValueOrUpdater;
     }
 
-    if (__DEV__) {
-      // Shape validation — catches type mismatches and missing/extra keys
+    // Dev validation — only runs when strict mode or shape checking is active.
+    // Plain chunks with no config skip this block entirely.
+    if (hasDevChecks) {
       validateObjectShape(value, newValue);
 
-      // Strict key enforcement — throws or warns on unknown keys
       if (
         allowedKeys &&
         newValue !== null &&
@@ -246,7 +252,11 @@ export function chunk<T>(initialValue: T, config: ChunkConfig<T> = {}): Chunk<T>
       }
     }
 
-    const processedValue = processMiddleware(newValue, middleware);
+    // Middleware — skip the function call entirely when no middleware configured.
+    // This is the common case for most chunks.
+    const processedValue = hasMiddleware
+      ? processMiddleware(newValue, middleware)
+      : newValue;
 
     if (processedValue !== value) {
       value = processedValue as T & {};
