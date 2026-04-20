@@ -2,14 +2,13 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,
-    "baseUrl": "./",
     "paths": {
-      "stunk/middleware": ["src/middleware"],
-      "stunk/react": ["src/use-react"]
+      "stunk/middleware": ["./src/middleware"],
+      "stunk/react": ["./src/use-react"]
     },
     "typeRoots": ["./node_modules/@types", "./types"],
     "strict": true,
