@@ -64,11 +64,18 @@ interface UseAsyncChunkResultWithParamsAndPagination<T, E extends Error, P exten
 
 // Options
 export interface UseAsyncChunkOptions<P extends Record<string, any> = {}> {
-  /** Initial parameters to pass to the fetcher on mount */
+  /**
+   * Parameters to pass to the fetcher. When these change between renders,
+   * the chunk automatically re-fetches with the new values.
+   */
+  params?: Partial<P>;
+  /**
+   * @deprecated Use `params` instead. Will be removed in v3 stable.
+   */
   initialParams?: Partial<P>;
   /**
    * Force a fetch on mount even when the chunk has no params.
-   * Ignored if initialParams is provided.
+   * Ignored if params is provided.
    * (default: false)
    */
   fetchOnMount?: boolean;
@@ -99,52 +106,46 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
  * Subscribes to an async chunk and returns its full state with reactive updates.
  *
  * Automatically handles `loading`, `error`, `data`, and `isPlaceholderData`.
- * Pass `initialParams` to trigger a fetch with parameters on mount, or
- * `fetchOnMount` to force a fetch for param-less chunks.
+ * Pass `params` to trigger a fetch with parameters — when params change between
+ * renders the chunk automatically re-fetches with the new values.
  *
  * @param asyncChunk - The async chunk to subscribe to.
- * @param options.initialParams - Params to pass to the fetcher on mount.
- * @param options.fetchOnMount - Force fetch on mount (default: false).
+ * @param options.params - Params to pass to the fetcher. Re-fetches when changed.
+ * @param options.fetchOnMount - Force fetch on mount for param-less chunks (default: false).
  *
  * @example
- * const { data, loading, error } = useAsyncChunk(userChunk);
+ * const { data, loading } = useAsyncChunk(userChunk);
  *
  * @example
- * // With params
- * const { data } = useAsyncChunk(userChunk, { initialParams: { id: 1 } });
+ * // Params — re-fetches automatically when id changes
+ * const { data } = useAsyncChunk(houseChunk, { params: { id } });
  */
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   asyncChunk: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>,
   options: UseAsyncChunkOptions<P> = {}
 ) {
-  const { initialParams, fetchOnMount = false } = options;
+  // Support both `params` (new) and `initialParams` (deprecated alias)
+  const resolvedParams = options.params ?? options.initialParams;
+  const { fetchOnMount = false } = options;
 
-  // Initialise from the chunk's current state — closes the gap between
-  // first render and when the subscription becomes active
   const [state, setState] = useState<AsyncStateWithPagination<T, E>>(
     () => asyncChunk.get()
   );
 
-  // Stable ref to options so the single useEffect never needs to re-run
-  // when initialParams or fetchOnMount change after mount
-  const optionsRef = useRef({ initialParams, fetchOnMount });
-  optionsRef.current = { initialParams, fetchOnMount };
+  const optionsRef = useRef({ resolvedParams, fetchOnMount });
+  optionsRef.current = { resolvedParams, fetchOnMount };
 
-  // Single effect — handles subscribe, initial fetch, and cleanup together
-  // so there are no gaps between subscribe and cleanup
+  // Single effect — subscribe, initial fetch, and cleanup
   useEffect(() => {
-    // Sync immediately on mount in case the chunk updated between
-    // the initial useState() call and this effect running
     setState(asyncChunk.get());
 
     const unsubscribe = asyncChunk.subscribe((newState) => {
       setState(newState);
     });
 
-    // Trigger initial fetch based on options
-    const { initialParams: ip, fetchOnMount: fom } = optionsRef.current;
-    if (ip && hasSetParams(asyncChunk)) {
-      asyncChunk.setParams(ip);
+    const { resolvedParams: rp, fetchOnMount: fom } = optionsRef.current;
+    if (rp && hasSetParams(asyncChunk)) {
+      asyncChunk.setParams(rp);
     } else if (fom) {
       asyncChunk.reload();
     }
@@ -153,9 +154,25 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
       unsubscribe();
       asyncChunk.cleanup();
     };
-  }, [asyncChunk]); // re-run only if the chunk instance itself changes
+  }, [asyncChunk]);
 
-  // Memoize Methods
+  // Params change effect — re-fetches when params change between renders.
+  // isMountedRef skips the first run since the mount effect above handles it.
+  const isMountedRef = useRef(false);
+  const paramsKey = resolvedParams ? JSON.stringify(resolvedParams) : null;
+
+  useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
+    if (resolvedParams && hasSetParams(asyncChunk)) {
+      asyncChunk.setParams(resolvedParams);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramsKey]);
+
+  // Memoized methods
 
   const reload = useCallback(
     (params?: Partial<P>) => asyncChunk.reload(params),
@@ -188,7 +205,6 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     if (hasClearParams(asyncChunk)) asyncChunk.clearParams();
   }, [asyncChunk]);
 
-  // Pagination — unconditional, guard internally
   const nextPage = useCallback(
     () => isPaginatedChunk(asyncChunk) ? asyncChunk.nextPage() : Promise.resolve(),
     [asyncChunk]
