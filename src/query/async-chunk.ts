@@ -31,14 +31,14 @@ export interface FetcherResponse<T> {
   hasMore?: boolean;
 }
 
-export interface AsyncChunkOptions<T, E extends Error = Error> {
+export interface AsyncChunkOptions<T, E extends Error = Error, P extends Record<string, any> = {}> {
   /** Deduplication key — concurrent calls with the same key share one in-flight request */
   key?: string;
 
   /** Seed data shown before the first fetch completes */
   initialData?: T | null;
   /** Disable fetching until ready — pass a function for dynamic evaluation */
-  enabled?: boolean | (() => boolean);
+  enabled?: boolean | ((params: Partial<P>) => boolean);
 
   /** Called after every successful fetch */
   onSuccess?: (data: T) => void;
@@ -107,9 +107,9 @@ export function asyncChunk<T, E extends Error = Error>(
 ): AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>;
 
 export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
-  fetcher: (params: P & { page?: number; pageSize?: number }) => Promise<T | FetcherResponse<T>>,
-  options?: AsyncChunkOptions<T, E>
-): (AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>) & {
+  fetcher: (params: P) => Promise<T | FetcherResponse<T>>,
+  options?: AsyncChunkOptions<T, E, P>
+): AsyncChunk<T, E> | PaginatedAsyncChunk<T, E> & {
   setParams: (params: Partial<P>) => void;
   reload: (params?: Partial<P>) => Promise<void>;
   refresh: (params?: Partial<P>) => Promise<void>;
@@ -141,9 +141,9 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
  * user.setParams({ id: 1 });
  */
 export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
-  fetcher: (params?: P & { page?: number; pageSize?: number }) => Promise<T | FetcherResponse<T>>,
-  options: AsyncChunkOptions<T, E> = {}
-) {
+  fetcher: (() => Promise<T | FetcherResponse<T>>) | ((params: P) => Promise<T | FetcherResponse<T>>),
+  options: AsyncChunkOptions<T, E, P> = {}
+): AsyncChunk<T, E> | PaginatedAsyncChunk<T, E> {
   // Merge global defaults — per-chunk options always win
   const globalQuery = getGlobalQueryConfig().query ?? {};
 
@@ -165,10 +165,12 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
 
   const chunkKey = key ?? `async_chunk_${chunkCounter++}`;
 
-  const isEnabled = () =>
-    typeof enabledOption === 'function'
-      ? (enabledOption as () => boolean)()
-      : enabledOption;
+  const isEnabled = (): boolean => {
+    if (typeof enabledOption === 'function') {
+      return (enabledOption as (params: Partial<P>) => boolean)(currentParams as Partial<P>);
+    }
+    return enabledOption ?? true;
+  };
 
   const isPaginated = !!paginationConfig;
   const paginationMode = paginationConfig?.mode || 'replace';
@@ -368,6 +370,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     },
 
     reload: async (params?: Partial<P>) => {
+      if (expectsParams && Object.keys(currentParams as object).length === 0) return;
       await fetchData(params, retryCount, true);
     },
 
