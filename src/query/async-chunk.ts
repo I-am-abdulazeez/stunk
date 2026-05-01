@@ -25,6 +25,22 @@ export interface AsyncStateWithPagination<T, E extends Error> extends AsyncState
   pagination?: PaginationState;
 }
 
+export interface ParamAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>
+  extends AsyncChunk<T, E> {
+  setParams: (params: Partial<Record<keyof P, P[keyof P] | null>>) => void;
+  clearParams: () => void;
+  reload: (params?: Partial<P>) => Promise<void>;
+  refresh: (params?: Partial<P>) => Promise<void>;
+}
+
+export interface PaginatedParamAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>
+  extends PaginatedAsyncChunk<T, E> {
+  setParams: (params: Partial<Record<keyof P, P[keyof P] | null>>) => void;
+  clearParams: () => void;
+  reload: (params?: Partial<P>) => Promise<void>;
+  refresh: (params?: Partial<P>) => Promise<void>;
+}
+
 export interface FetcherResponse<T> {
   data: T;
   total?: number;
@@ -100,20 +116,29 @@ export interface PaginatedAsyncChunk<T, E extends Error = Error> extends AsyncCh
   resetPagination: () => Promise<void>;
 }
 
-// Overloaded signatures
+// No-param, no pagination
 export function asyncChunk<T, E extends Error = Error>(
   fetcher: () => Promise<T | FetcherResponse<T>>,
   options?: AsyncChunkOptions<T, E>
-): AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>;
+): AsyncChunk<T, E>;
 
+// No-param, with pagination
+export function asyncChunk<T, E extends Error = Error>(
+  fetcher: () => Promise<T | FetcherResponse<T>>,
+  options: AsyncChunkOptions<T, E> & { pagination: NonNullable<AsyncChunkOptions<T, E>['pagination']> }
+): PaginatedAsyncChunk<T, E>;
+
+// With params, no pagination
 export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   fetcher: (params: P) => Promise<T | FetcherResponse<T>>,
   options?: AsyncChunkOptions<T, E, P>
-): AsyncChunk<T, E> | PaginatedAsyncChunk<T, E> & {
-  setParams: (params: Partial<P>) => void;
-  reload: (params?: Partial<P>) => Promise<void>;
-  refresh: (params?: Partial<P>) => Promise<void>;
-};
+): ParamAsyncChunk<T, E, P>;
+
+// With params, with pagination
+export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  fetcher: (params: P) => Promise<T | FetcherResponse<T>>,
+  options: AsyncChunkOptions<T, E, P> & { pagination: NonNullable<AsyncChunkOptions<T, E, P>['pagination']> }
+): PaginatedParamAsyncChunk<T, E, P>;
 
 
 /**
@@ -163,6 +188,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     pagination: paginationConfig,
   } = options;
 
+  let currentParams: Partial<P> = {};
   const chunkKey = key ?? `async_chunk_${chunkCounter++}`;
 
   const isEnabled = (): boolean => {
@@ -191,7 +217,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   };
 
   const baseChunk = chunk(initialState);
-  let currentParams: Partial<P> = {};
   let intervalId: number | null = null;
   let cacheTimeoutId: number | null = null;
   let windowFocusHandler: (() => void) | null = null;
@@ -259,6 +284,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     }
 
     const state = baseChunk.get();
+    const previousData = state.data; // ← snapshot here, before fetch starts
 
     baseChunk.set({
       ...state,
@@ -267,6 +293,8 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       data: state.data,
       isPlaceholderData: keepPreviousData && state.data !== null,
     });
+
+
 
     const request = (async () => {
       try {
@@ -302,11 +330,11 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         if (
           isPaginated &&
           paginationMode === 'accumulate' &&
-          freshState.data &&
-          Array.isArray(freshState.data) &&
+          previousData &&
+          Array.isArray(previousData) &&
           Array.isArray(data)
         ) {
-          data = [...(freshState.data as any[]), ...data] as T;
+          data = [...(previousData as any[]), ...data] as T;
         }
 
         baseChunk.set({
@@ -370,7 +398,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     },
 
     reload: async (params?: Partial<P>) => {
-      if (expectsParams && Object.keys(currentParams as object).length === 0) return;
+      if (expectsParams && !isPaginated && Object.keys(currentParams as object).length === 0) return;
       await fetchData(params, retryCount, true);
     },
 
