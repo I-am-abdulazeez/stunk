@@ -63,7 +63,7 @@ interface UseAsyncChunkResultWithParamsAndPagination<T, E extends Error, P exten
   Omit<UseAsyncChunkResultWithPagination<T, E, P>, keyof UseAsyncChunkResult<T, E, P>> { }
 
 // Options
-export interface UseAsyncChunkOptions<P extends Record<string, any> = {}> {
+export interface UseAsyncChunkOptions<T = any, E extends Error = Error, P extends Record<string, any> = {}> {
   /**
    * Parameters to pass to the fetcher. When these change between renders,
    * the chunk automatically re-fetches with the new values.
@@ -79,27 +79,37 @@ export interface UseAsyncChunkOptions<P extends Record<string, any> = {}> {
    * (default: false)
    */
   fetchOnMount?: boolean;
+  /**
+   * Called after every successful fetch at the hook level.
+   * Has full access to React context — safe to call navigate(), setState(), etc.
+   */
+  onSuccess?: (data: T) => void;
+  /**
+   * Called when a fetch fails at the hook level.
+   * Has full access to React context — safe to call navigate(), setState(), etc.
+   */
+  onError?: (error: E) => void;
 }
 
 // Overloads
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   asyncChunk: PaginatedAsyncChunk<T, E> & { setParams: (params: Partial<P>) => void },
-  options?: UseAsyncChunkOptions<P>
+  options?: UseAsyncChunkOptions<T, E, P>
 ): UseAsyncChunkResultWithParamsAndPagination<T, E, P>;
 
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   asyncChunk: PaginatedAsyncChunk<T, E>,
-  options?: UseAsyncChunkOptions<P>
+  options?: UseAsyncChunkOptions<T, E, P>
 ): UseAsyncChunkResultWithPagination<T, E, P>;
 
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   asyncChunk: AsyncChunk<T, E> & { setParams: (params: Partial<P>) => void },
-  options?: UseAsyncChunkOptions<P>
+  options?: UseAsyncChunkOptions<T, E, P>
 ): UseAsyncChunkResultWithParams<T, E, P>;
 
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   asyncChunk: AsyncChunk<T, E>,
-  options?: UseAsyncChunkOptions<P>
+  options?: UseAsyncChunkOptions<T, E, P>
 ): UseAsyncChunkResult<T, E, P>;
 
 /**
@@ -109,9 +119,14 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
  * Pass `params` to trigger a fetch with parameters — when params change between
  * renders the chunk automatically re-fetches with the new values.
  *
+ * Hook-level `onSuccess` and `onError` have full access to React context —
+ * safe to call navigate(), setState(), or any other React hook side-effects.
+ *
  * @param asyncChunk - The async chunk to subscribe to.
  * @param options.params - Params to pass to the fetcher. Re-fetches when changed.
  * @param options.fetchOnMount - Force fetch on mount for param-less chunks (default: false).
+ * @param options.onSuccess - Called after every successful fetch. Has React context access.
+ * @param options.onError - Called when a fetch fails. Has React context access.
  *
  * @example
  * const { data, loading } = useAsyncChunk(userChunk);
@@ -119,27 +134,56 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
  * @example
  * // Params — re-fetches automatically when id changes
  * const { data } = useAsyncChunk(houseChunk, { params: { id } });
+ *
+ * @example
+ * // Hook-level callbacks — navigate, set state, anything React
+ * const { data } = useAsyncChunk(profileChunk, {
+ *   onSuccess: (data) => {
+ *     if (!data) navigate('/login')
+ *     setName(data.name)
+ *   },
+ *   onError: () => navigate('/error'),
+ * });
  */
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   asyncChunk: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>,
-  options: UseAsyncChunkOptions<P> = {}
+  options: UseAsyncChunkOptions<T, E, P> = {}
 ) {
   // Support both `params` (new) and `initialParams` (deprecated alias)
   const resolvedParams = options.params ?? options.initialParams;
-  const { fetchOnMount = false } = options;
+  const { fetchOnMount = false, onSuccess, onError } = options;
 
   const [state, setState] = useState<AsyncStateWithPagination<T, E>>(
     () => asyncChunk.get()
   );
 
-  const optionsRef = useRef({ resolvedParams, fetchOnMount });
-  optionsRef.current = { resolvedParams, fetchOnMount };
+  // Keep latest callbacks in a ref so they never cause effect re-runs
+  const optionsRef = useRef({ resolvedParams, fetchOnMount, onSuccess, onError });
+  optionsRef.current = { resolvedParams, fetchOnMount, onSuccess, onError };
+
+  // Track previous state to detect loading → settled transitions
+  const prevStateRef = useRef<AsyncStateWithPagination<T, E>>(asyncChunk.get());
 
   // Single effect — subscribe, initial fetch, and cleanup
   useEffect(() => {
-    setState(asyncChunk.get());
+    const initialState = asyncChunk.get();
+    setState(initialState);
+    prevStateRef.current = initialState;
 
     const unsubscribe = asyncChunk.subscribe((newState) => {
+      const prev = prevStateRef.current;
+
+      // loading → success transition
+      if (prev.loading && !newState.loading && !newState.error && newState.data !== null) {
+        optionsRef.current.onSuccess?.(newState.data as T);
+      }
+
+      // loading → error transition
+      if (prev.loading && !newState.loading && newState.error) {
+        optionsRef.current.onError?.(newState.error as E);
+      }
+
+      prevStateRef.current = newState;
       setState(newState);
     });
 
