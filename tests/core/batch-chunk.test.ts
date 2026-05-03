@@ -150,3 +150,63 @@ describe('Chunk batch updates', () => {
     expect(boolChunk.get()).toBe(true);
   });
 });
+
+describe('Chunk destroy() inside batch', () => {
+  it('should NOT notify subscribers of a destroyed chunk after batch flush', () => {
+    const c = chunk(0);
+    const callback = vi.fn();
+
+    c.subscribe(callback);
+    callback.mockClear();
+
+    batch(() => {
+      c.set(42);
+      c.destroy(); // destroyed mid-batch — should prevent notification
+    });
+
+    // callback should NOT have been called — chunk was destroyed before flush
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it('should still notify other non-destroyed chunks in the same batch', () => {
+    const chunk1 = chunk(0);
+    const chunk2 = chunk(0);
+
+    const callback1 = vi.fn();
+    const callback2 = vi.fn();
+
+    chunk1.subscribe(callback1);
+    chunk2.subscribe(callback2);
+
+    callback1.mockClear();
+    callback2.mockClear();
+
+    batch(() => {
+      chunk1.set(10);
+      chunk2.set(20);
+      chunk1.destroy(); // only chunk1 is destroyed
+    });
+
+    // chunk1 was destroyed — its subscriber should NOT fire
+    expect(callback1).not.toHaveBeenCalled();
+
+    // chunk2 is alive — its subscriber SHOULD fire
+    expect(callback2).toHaveBeenCalledTimes(1);
+    expect(callback2).toHaveBeenCalledWith(20);
+  });
+
+  it('should reset destroyed chunk value to initial inside batch', () => {
+    const c = chunk(0);
+    const callback = vi.fn();
+
+    c.subscribe(callback);
+
+    batch(() => {
+      c.set(99);
+      c.destroy();
+    });
+
+    // After destroy, value should be reset to initial
+    expect(c.get()).toBe(0);
+  });
+});
