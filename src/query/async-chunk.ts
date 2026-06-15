@@ -256,13 +256,13 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     if (!isEnabled()) return;
     if (typeof window === 'undefined') return;
 
-    if (refetchInterval && refetchInterval > 0) {
+    if (refetchInterval && refetchInterval > 0 && !intervalId) {
       intervalId = setInterval(() => {
         fetchData(undefined, 0, false);
       }, refetchInterval) as unknown as number;
     }
 
-    if (refetchOnWindowFocus) {
+    if (refetchOnWindowFocus && !windowFocusHandler) {
       windowFocusHandler = () => {
         if (isStale()) fetchData(undefined, 0, false);
       };
