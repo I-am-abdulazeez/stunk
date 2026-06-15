@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { asyncChunk, type PaginatedParamAsyncChunk } from "../../src/query/async-chunk";
+import { chunk } from "../../src/core/core";
 interface User {
   id: number;
   name: string;
@@ -814,5 +815,79 @@ describe('asyncChunk — pagination', () => {
 
     expect(dataChunk.get().pagination?.page).toBe(1);
     expect(fetchCount).toBe(countAfterLoad);
+  });
+});
+
+describe('asyncChunk — reactive enabled', () => {
+  it('should auto-fetch when a chunk dependency of enabled becomes true', async () => {
+    const { chunk } = await import('../../src/core/core');
+    const mockUser: User = { id: 1, name: 'Test User' };
+
+    const tokenChunk = chunk<string | null>(null);
+
+    const userChunk = asyncChunk<User>(
+      async () => mockUser,
+      { enabled: () => !!tokenChunk.get() }
+    );
+
+    // Should not fetch — token is null
+    await delay(100);
+    expect(userChunk.get().data).toBe(null);
+    expect(userChunk.get().loading).toBe(false);
+
+    // Simulate login — token set
+    tokenChunk.set('my-access-token');
+    await delay(100);
+
+    // Should have auto-fetched
+    expect(userChunk.get().data).toEqual(mockUser);
+    expect(userChunk.get().loading).toBe(false);
+  });
+
+  it('should not fetch again when enabled dependency changes but isEnabled remains true', async () => {
+    let fetchCount = 0;
+    const tokenChunk = chunk<string | null>(null);
+
+    const userChunk = asyncChunk<User>(
+      async () => {
+        fetchCount++;
+        return { id: fetchCount, name: `User ${fetchCount}` };
+      },
+      { enabled: () => !!tokenChunk.get() }
+    );
+
+    tokenChunk.set('token-1');
+    await delay(100);
+    expect(fetchCount).toBe(1);
+
+    // Change token value but still truthy — should not re-fetch
+    tokenChunk.set('token-2');
+    await delay(100);
+    expect(fetchCount).toBe(1);
+  });
+
+  it('should stop fetching when enabled dependency becomes false', async () => {
+    let fetchCount = 0;
+    const tokenChunk = chunk<string | null>('initial-token');
+
+    const userChunk = asyncChunk<User>(
+      async () => {
+        fetchCount++;
+        return { id: fetchCount, name: `User ${fetchCount}` };
+      },
+      { enabled: () => !!tokenChunk.get() }
+    );
+
+    await delay(100);
+    expect(fetchCount).toBe(1);
+
+    // Simulate logout
+    tokenChunk.set(null);
+    await delay(100);
+
+    // Reload should be blocked
+    await userChunk.reload();
+    await delay(100);
+    expect(fetchCount).toBe(1);
   });
 });
