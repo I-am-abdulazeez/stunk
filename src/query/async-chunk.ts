@@ -198,27 +198,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     return enabledOption ?? true;
   };
 
-  if (typeof enabledOption === 'function') {
-    const [, enabledDeps] = trackDependencies(
-      () => (enabledOption as (params: Partial<P>) => boolean)(currentParams as Partial<P>)
-    );
-
-    let previousEnabledState = isEnabled();
-
-    enabledDeps.forEach(dep => {
-      dep.subscribe(() => {
-        const currentEnabledState = isEnabled();
-
-        if (!previousEnabledState && currentEnabledState && !expectsParams) {
-          setupSideEffects();
-          fetchData(undefined, retryCount, true);
-        }
-
-        previousEnabledState = currentEnabledState;
-      });
-    });
-  }
-
   const isPaginated = !!paginationConfig;
   const paginationMode = paginationConfig?.mode || 'replace';
   const expectsParams = fetcher.length > 0;
@@ -400,6 +379,27 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     inFlightRequests.set(chunkKey, request);
     return request;
   };
+
+  if (typeof enabledOption === 'function') {
+    const [, enabledDeps] = trackDependencies(
+      () => (enabledOption as (params: Partial<P>) => boolean)(currentParams as Partial<P>)
+    );
+
+    let previousEnabledState = isEnabled();
+
+    enabledDeps.forEach(dep => {
+      dep.subscribe(() => {
+        const currentEnabledState = isEnabled();
+
+        if (!previousEnabledState && currentEnabledState && !expectsParams) {
+          setupSideEffects();
+          fetchData(undefined, retryCount, true);
+        }
+
+        previousEnabledState = currentEnabledState;
+      });
+    });
+  }
 
   // Initialize side effects and initial fetch
   setupSideEffects();
