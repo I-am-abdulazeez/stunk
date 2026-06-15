@@ -80,6 +80,12 @@ export interface UseAsyncChunkOptions<T = any, E extends Error = Error, P extend
    */
   fetchOnMount?: boolean;
   /**
+   * Whether the chunk is enabled.
+   * If false, the chunk will not fetch data.
+   * (default: true)
+   */
+  enabled?: boolean;
+  /**
    * Called after every successful fetch at the hook level.
    * Has full access to React context — safe to call navigate(), setState(), etc.
    */
@@ -151,7 +157,7 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
 ) {
   // Support both `params` (new) and `initialParams` (deprecated alias)
   const resolvedParams = options.params ?? options.initialParams;
-  const { fetchOnMount = false, onSuccess, onError } = options;
+  const { fetchOnMount = false, onSuccess, onError, enabled = true } = options;
 
   const [state, setState] = useState<AsyncStateWithPagination<T, E>>(
     () => asyncChunk.get()
@@ -163,6 +169,17 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
 
   // Track previous state to detect loading → settled transitions
   const prevStateRef = useRef<AsyncStateWithPagination<T, E>>(asyncChunk.get());
+
+  const prevEnabledRef = useRef(enabled);
+
+  useEffect(() => {
+    const wasEnabled = prevEnabledRef.current;
+    prevEnabledRef.current = enabled;
+
+    if (!wasEnabled && enabled) {
+      asyncChunk.reload();
+    }
+  }, [enabled, asyncChunk]);
 
   // Single effect — subscribe, initial fetch, and cleanup
   useEffect(() => {
