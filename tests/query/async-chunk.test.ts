@@ -890,4 +890,28 @@ describe('asyncChunk — reactive enabled', () => {
     await delay(100);
     expect(fetchCount).toBe(1);
   });
+
+  it('should not duplicate data when reload is called in accumulate mode', async () => {
+    const { chunk } = await import('../../src/core/core');
+    const tokenChunk = chunk<string | null>(null);
+
+    const postsChunk = asyncChunk<string[]>(
+      async () => ['post1', 'post2'],
+      {
+        enabled: () => !!tokenChunk.get(),
+        pagination: { mode: 'accumulate', pageSize: 2 },
+      }
+    );
+
+    // Login — first fetch
+    tokenChunk.set('my-token');
+    await delay(100);
+    expect(postsChunk.get().data).toEqual(['post1', 'post2']);
+
+    // Reload — should replace not accumulate
+    await postsChunk.reload();
+    await delay(100);
+    expect(postsChunk.get().data).toEqual(['post1', 'post2']); // still 2, not 4
+    expect(postsChunk.get().data).toHaveLength(2);
+  });
 });
