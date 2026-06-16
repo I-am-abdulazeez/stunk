@@ -131,7 +131,13 @@ export function mutation<TData, TError extends Error = Error, TVariables = void>
 
       // Reload all invalidated chunks after success
       if (invalidates.length > 0) {
-        await Promise.all(invalidates.map(c => c.reload()));
+        await Promise.all(
+          invalidates.map(c =>
+            'resetPagination' in c
+              ? (c as any).resetPagination()
+              : c.reload()
+          )
+        );
       }
 
       if (onSuccess) onSuccess(data, variables);
