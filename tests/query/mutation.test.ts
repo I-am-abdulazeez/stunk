@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mutation } from '../../src/query/mutation';
-import { asyncChunk } from '../../src/query/async-chunk';
+import { asyncChunk, PaginatedAsyncChunk } from '../../src/query/async-chunk';
 import { configureQuery, resetQueryConfig } from '../../src/query/configure-query';
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 afterEach(() => {
   resetQueryConfig();
@@ -324,5 +326,86 @@ describe('mutation — global config', () => {
 
     expect(localOnSuccess).toHaveBeenCalled();
     expect(globalOnSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe('mutation — invalidates paginated chunks', () => {
+  it('should call resetPagination on paginated chunks instead of reload', async () => {
+    const fetcher = vi.fn(async () => ({ data: ['a', 'b'], hasMore: false }));
+    const paginatedChunk = asyncChunk(fetcher, {
+      pagination: { pageSize: 2, mode: 'accumulate' }
+    });
+
+    await paginatedChunk.reload();
+    fetcher.mockClear();
+
+    const m = mutation(
+      async () => 'done',
+      { invalidates: [paginatedChunk] }
+    );
+
+    await m.mutate();
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    // page should be reset to 1
+    expect(paginatedChunk.get().pagination?.page).toBe(1);
+  });
+
+  it('should reset accumulated data when paginated chunk is invalidated', async () => {
+    let page = 0;
+    const fetcher = vi.fn(async () => {
+      page++;
+      return { data: [`item${page}`], hasMore: page < 2 };
+    });
+
+    const paginatedChunk = asyncChunk(fetcher, {
+      pagination: { pageSize: 1, mode: 'accumulate' }
+    }) as PaginatedAsyncChunk<string[], Error>;
+
+    await paginatedChunk.reload();
+    await (paginatedChunk as PaginatedAsyncChunk<string[], Error>).nextPage();
+    await delay(100);
+
+    // Should have 2 items accumulated
+    expect(paginatedChunk.get().data).toHaveLength(2);
+
+    const m = mutation(
+      async () => 'done',
+      { invalidates: [paginatedChunk] }
+    );
+
+    page = 0; // reset counter
+    await m.mutate();
+    await delay(100);
+
+    // After invalidate — should be reset to page 1 with only 1 item
+    expect(paginatedChunk.get().data).toHaveLength(1);
+    expect(paginatedChunk.get().pagination?.page).toBe(1);
+  });
+
+  it('should call reload on non-paginated chunks and resetPagination on paginated chunks in same invalidates array', async () => {
+    const regularFetcher = vi.fn(async () => 'data');
+    const regularChunk = asyncChunk(regularFetcher);
+    await regularChunk.reload();
+    regularFetcher.mockClear();
+
+    const paginatedFetcher = vi.fn(async () => ({ data: ['a'], hasMore: false }));
+    const paginatedChunk = asyncChunk(paginatedFetcher, {
+      pagination: { pageSize: 1, mode: 'accumulate' }
+    });
+    await paginatedChunk.reload();
+    paginatedFetcher.mockClear();
+
+    const m = mutation(
+      async () => 'done',
+      { invalidates: [regularChunk, paginatedChunk] }
+    );
+
+    await m.mutate();
+    await delay(100);
+
+    expect(regularFetcher).toHaveBeenCalledTimes(1);
+    expect(paginatedFetcher).toHaveBeenCalledTimes(1);
+    expect(paginatedChunk.get().pagination?.page).toBe(1);
   });
 });
