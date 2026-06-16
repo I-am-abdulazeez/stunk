@@ -221,6 +221,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   let cacheTimeoutId: number | null = null;
   let windowFocusHandler: (() => void) | null = null;
   let subscriberCount = 0;
+  let isNextPageFetch = false;
 
   const isStale = () => {
     const state = baseChunk.get();
@@ -330,6 +331,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         if (
           isPaginated &&
           paginationMode === 'accumulate' &&
+          isNextPageFetch &&
           previousData &&
           Array.isArray(previousData) &&
           Array.isArray(data)
@@ -404,6 +406,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   // Initialize side effects and initial fetch
   setupSideEffects();
   if (isEnabled() && !expectsParams) fetchData();
+
 
   const baseInstance = {
     ...baseChunk,
@@ -480,7 +483,9 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
           ...state,
           pagination: { ...state.pagination, page: state.pagination.page + 1 }
         });
+        isNextPageFetch = true;  // ← set before
         await fetchData(currentParams, retryCount, true);
+        isNextPageFetch = false; // ← reset after
       },
 
       prevPage: async () => {
