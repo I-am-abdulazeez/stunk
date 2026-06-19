@@ -1,6 +1,6 @@
 export type { AsyncChunk, PaginatedAsyncChunk, AsyncState, AsyncStateWithPagination, PaginatedParamAsyncChunk } from '../query/async-chunk';
 
-export { asyncChunk } from './async-chunk';
+export { asyncChunk, paginatedAsyncChunk } from './async-chunk';
 export { infiniteAsyncChunk } from './infinite-async-chunk';
 export { combineAsyncChunks } from "./combine-async-chunk";
 
