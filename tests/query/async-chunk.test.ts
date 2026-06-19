@@ -914,4 +914,25 @@ describe('asyncChunk — reactive enabled', () => {
     expect(postsChunk.get().data).toEqual(['post1', 'post2']); // still 2, not 4
     expect(postsChunk.get().data).toHaveLength(2);
   });
+
+  it('should reset to page 1 when setParams is called on a paginated chunk', async () => {
+    const fetcher = vi.fn(async ({ page }: { page: number; pageSize: number; search?: string }) => ({
+      data: [`item-page-${page}`],
+      hasMore: true,
+    }));
+
+    const searchChunk = asyncChunk(fetcher, {
+      pagination: { pageSize: 5, mode: 'replace' },
+    }) as PaginatedParamAsyncChunk<string[], Error, { search?: string }>;
+
+    await searchChunk.reload();
+    await searchChunk.nextPage();
+    await searchChunk.nextPage();
+    expect(searchChunk.get().pagination?.page).toBe(3);
+
+    searchChunk.setParams({ search: 'foo' });
+    await delay(50);
+
+    expect(searchChunk.get().pagination?.page).toBe(1);
+  });
 });
