@@ -1,7 +1,6 @@
 import { chunk, Chunk, trackDependencies } from "../core/core";
 import { getGlobalQueryConfig } from "./configure-query";
 
-// Global registry for in-flight request deduplication
 const inFlightRequests = new Map<string, Promise<void>>();
 let chunkCounter = 0;
 
@@ -116,60 +115,15 @@ export interface PaginatedAsyncChunk<T, E extends Error = Error> extends AsyncCh
   resetPagination: () => Promise<void>;
 }
 
-// No-param, no pagination
-export function asyncChunk<T, E extends Error = Error>(
-  fetcher: () => Promise<T | FetcherResponse<T>>,
-  options?: AsyncChunkOptions<T, E>
-): AsyncChunk<T, E>;
-
-// No-param, with pagination
-export function asyncChunk<T, E extends Error = Error>(
-  fetcher: () => Promise<T | FetcherResponse<T>>,
-  options: AsyncChunkOptions<T, E> & { pagination: NonNullable<AsyncChunkOptions<T, E>['pagination']> }
-): PaginatedAsyncChunk<T, E>;
-
-// With params, no pagination
-export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
-  fetcher: (params: P) => Promise<T | FetcherResponse<T>>,
-  options?: AsyncChunkOptions<T, E, P>
-): ParamAsyncChunk<T, E, P>;
-
-// With params, with pagination
-export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
-  fetcher: (params: P) => Promise<T | FetcherResponse<T>>,
-  options: AsyncChunkOptions<T, E, P> & { pagination: NonNullable<AsyncChunkOptions<T, E, P>['pagination']> }
-): PaginatedParamAsyncChunk<T, E, P>;
-
 
 /**
- * Creates a reactive async state unit for data fetching.
- *
- * Tracks `loading`, `error`, `data`, and `lastFetched`. Fetchers with no
- * parameters auto-fetch on creation. Fetchers with parameters wait for
- * `setParams()` or `reload()`.
- *
- * @param fetcher - Async function returning data or a `FetcherResponse`.
- * @param options.key - Deduplication key — concurrent calls share one request.
- * @param options.enabled - Prevent fetching until ready (boolean or function).
- * @param options.keepPreviousData - Show previous data while refetching.
- * @param options.onSuccess - Called after every successful fetch.
- * @param options.onError - Called when all retries are exhausted.
- * @param options.staleTime - Time in ms before data is considered stale.
- * @param options.refetchInterval - Auto-refetch interval in ms.
- * @param options.refetchOnWindowFocus - Refetch when window regains focus.
- * @param options.pagination - Enable pagination (`mode: 'replace' | 'accumulate'`).
- *
- * @example
- * const users = asyncChunk(() => fetchUsers());
- *
- * const user = asyncChunk(({ id }: { id: number }) => fetchUser(id));
- * user.setParams({ id: 1 });
+ * Internal factory — shared logic for both `asyncChunk` and `paginatedAsyncChunk`.
+ * Not exported; callers use the two public functions below for unambiguous types.
  */
-export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<string, any> = {}>(
   fetcher: (() => Promise<T | FetcherResponse<T>>) | ((params: P) => Promise<T | FetcherResponse<T>>),
   options: AsyncChunkOptions<T, E, P> = {}
 ): AsyncChunk<T, E> | PaginatedAsyncChunk<T, E> {
-  // Merge global defaults — per-chunk options always win
   const globalQuery = getGlobalQueryConfig().query ?? {};
 
   const {
@@ -285,7 +239,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     }
 
     const state = baseChunk.get();
-    const previousData = state.data; // ← snapshot here, before fetch starts
+    const previousData = state.data;
 
     baseChunk.set({
       ...state,
@@ -294,8 +248,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       data: state.data,
       isPlaceholderData: keepPreviousData && state.data !== null,
     });
-
-
 
     const request = (async () => {
       try {
@@ -357,7 +309,6 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       } catch (error) {
         if (retries > 0) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
-          // Remove in-flight entry so retry can register a new one
           inFlightRequests.delete(chunkKey);
           return fetchData(params, retries - 1, force);
         }
@@ -394,6 +345,7 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         const currentEnabledState = isEnabled();
 
         if (!previousEnabledState && currentEnabledState && !expectsParams) {
+          teardownSideEffects();
           setupSideEffects();
           fetchData(undefined, retryCount, true);
         }
@@ -403,15 +355,12 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
     });
   }
 
-  // Initialize side effects and initial fetch
   setupSideEffects();
   if (isEnabled() && !expectsParams) fetchData();
-
 
   const baseInstance = {
     ...baseChunk,
 
-    // Ref-counted subscribe — tracks how many active subscribers exist
     subscribe: (callback: (state: AsyncStateWithPagination<T, E>) => void) => {
       subscriberCount++;
       const unsubscribe = baseChunk.subscribe(callback);
@@ -443,12 +392,10 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
       if (isEnabled() && !expectsParams) fetchData();
     },
 
-    // Safe cleanup — only tears down side effects if no active subscribers remain
     cleanup: () => {
       if (subscriberCount <= 0) teardownSideEffects();
     },
 
-    // Force cleanup regardless of subscriber count — use for destroy scenarios
     forceCleanup: () => {
       teardownSideEffects();
     },
@@ -463,6 +410,18 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
         }
       }
       currentParams = next;
+
+      if (isPaginated) {
+        const state = baseChunk.get();
+        if (state.pagination) {
+          baseChunk.set({
+            ...state,
+            data: paginationMode === 'accumulate' ? initialData : state.data,
+            pagination: { ...state.pagination, page: paginationConfig?.initialPage || 1 },
+          });
+        }
+      }
+
       if (isEnabled()) fetchData(currentParams as Partial<P>, retryCount, true);
     },
 
@@ -483,9 +442,9 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
           ...state,
           pagination: { ...state.pagination, page: state.pagination.page + 1 }
         });
-        isNextPageFetch = true;  // ← set before
+        isNextPageFetch = true;
         await fetchData(currentParams, retryCount, true);
-        isNextPageFetch = false; // ← reset after
+        isNextPageFetch = false;
       },
 
       prevPage: async () => {
@@ -522,4 +481,61 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
   }
 
   return baseInstance;
+}
+
+/**
+ * Creates a reactive async state unit for data fetching (no pagination).
+ *
+ * Tracks `loading`, `error`, `data`, and `lastFetched`. Fetchers with no
+ * parameters auto-fetch on creation. Fetchers with parameters wait for
+ * `setParams()` or `reload()`.
+ *
+ * For paginated lists, use `paginatedAsyncChunk` instead — it returns a
+ * dedicated type with `nextPage`/`prevPage`/`goToPage`/`resetPagination`
+ * and never requires a type cast at the call site.
+ *
+ * @example
+ * const users = asyncChunk(() => fetchUsers());
+ *
+ * const user = asyncChunk(({ id }: { id: number }) => fetchUser(id));
+ * user.setParams({ id: 1 });
+ */
+export function asyncChunk<T, E extends Error = Error>(
+  fetcher: () => Promise<T | FetcherResponse<T>>,
+  options?: Omit<AsyncChunkOptions<T, E>, 'pagination'>
+): AsyncChunk<T, E>;
+export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  fetcher: (params: P) => Promise<T | FetcherResponse<T>>,
+  options?: Omit<AsyncChunkOptions<T, E, P>, 'pagination'>
+): ParamAsyncChunk<T, E, P>;
+export function asyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  fetcher: (() => Promise<T | FetcherResponse<T>>) | ((params: P) => Promise<T | FetcherResponse<T>>),
+  options: Omit<AsyncChunkOptions<T, E, P>, 'pagination'> = {}
+): AsyncChunk<T, E> | ParamAsyncChunk<T, E, P> {
+  return createAsyncChunkInternal(fetcher, options) as AsyncChunk<T, E> | ParamAsyncChunk<T, E, P>;
+}
+
+/**
+ * Creates a paginated async state unit — always returns `PaginatedParamAsyncChunk`
+ * with `nextPage`/`prevPage`/`goToPage`/`resetPagination`. No overload ambiguity,
+ * no type casts needed at the call site.
+ *
+ * @param fetcher - Async function receiving `{ page, pageSize, ...params }`,
+ *   returning `{ data: T, total?, hasMore? }`.
+ * @param options.pagination - Required. `mode: 'replace'` for page-based UIs,
+ *   `'accumulate'` for infinite scroll (or use `infiniteAsyncChunk` directly).
+ *
+ * @example
+ * const usersList = paginatedAsyncChunk(
+ *   ({ page, pageSize, search }) => fetchUsers({ page, pageSize, search }),
+ *   { pagination: { pageSize: 20, mode: 'replace' } }
+ * );
+ * usersList.setParams({ search: 'john' }); // resets to page 1, refetches
+ * usersList.goToPage(2);
+ */
+export function paginatedAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
+  fetcher: (params: P & { page: number; pageSize: number }) => Promise<FetcherResponse<T>>,
+  options: AsyncChunkOptions<T, E, P> & { pagination: NonNullable<AsyncChunkOptions<T, E, P>['pagination']> }
+): PaginatedParamAsyncChunk<T, E, P> {
+  return createAsyncChunkInternal(fetcher as any, options) as PaginatedParamAsyncChunk<T, E, P>;
 }
