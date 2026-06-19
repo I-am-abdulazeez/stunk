@@ -3,9 +3,13 @@ import { useAsyncChunk, UseAsyncChunkOptions } from './use-async-chunk';
 import { InfiniteAsyncChunk } from '../../query/infinite-async-chunk';
 
 export interface UseInfiniteAsyncChunkOptions<P extends Record<string, any>>
-  extends Omit<UseAsyncChunkOptions<P>, 'initialParams'> {
-  /** Initial parameters — page and pageSize are managed automatically */
+  extends Omit<UseAsyncChunkOptions<P>, 'initialParams' | 'params'> {
+  /**
+   * @deprecated Use `params` instead. Will be removed in v3 stable.
+   */
   initialParams?: Omit<Partial<P>, 'page' | 'pageSize'>;
+  /** Reactive parameters — page and pageSize are managed automatically. Re-fetches from page 1 when these change. */
+  params?: Omit<Partial<P>, 'page' | 'pageSize'>;
   /** Automatically load next page when sentinel enters viewport (default: true) */
   autoLoad?: boolean;
   /** IntersectionObserver threshold — 0.0 to 1.0 (default: 1.0) */
@@ -47,10 +51,16 @@ export interface UseInfiniteAsyncChunkResult<T, E extends Error, P extends Recor
  * @param chunk - An `InfiniteAsyncChunk` instance.
  * @param options.autoLoad - Auto-load on scroll (default: true).
  * @param options.threshold - IntersectionObserver threshold 0.0–1.0 (default: 1.0).
- * @param options.initialParams - Initial params excluding `page` and `pageSize`.
+ * @param options.params - Reactive params excluding `page` and `pageSize`. Resets to page 1 and refetches when changed.
  *
  * @example
  * const { data, loading, hasMore, observerTarget, loadMore } = useInfiniteAsyncChunk(postsChunk);
+ *
+ * @example
+ * // Reactive search — resets to page 1 automatically when searchTerm changes
+ * const { data } = useInfiniteAsyncChunk(companiesChunk, {
+ *   params: { search: searchTerm },
+ * });
  *
  * return (
  *   <>
@@ -69,6 +79,7 @@ export function useInfiniteAsyncChunk<
 ): UseInfiniteAsyncChunkResult<T, E, P> {
   const {
     initialParams,
+    params,
     autoLoad = true,
     threshold = 1.0,
     fetchOnMount,
@@ -76,7 +87,8 @@ export function useInfiniteAsyncChunk<
 
   // Pass user params only — never page/pageSize, those are owned by the chunk
   const result = useAsyncChunk(chunk, {
-    ...(initialParams && { initialParams: initialParams as Partial<P> }),
+    ...(params && { params: params as Partial<P> }),
+    ...(!params && initialParams && { initialParams: initialParams as Partial<P> }),
     fetchOnMount,
   });
 
