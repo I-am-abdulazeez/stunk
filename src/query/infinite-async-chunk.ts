@@ -1,4 +1,4 @@
-import { asyncChunk, AsyncChunkOptions, PaginatedAsyncChunk } from './async-chunk';
+import { paginatedAsyncChunk, AsyncChunkOptions, PaginatedParamAsyncChunk } from './async-chunk';
 
 export type InfiniteAsyncChunkOptions<T, E extends Error = Error> =
   Omit<AsyncChunkOptions<T[], E>, 'pagination'> & {
@@ -7,25 +7,13 @@ export type InfiniteAsyncChunkOptions<T, E extends Error = Error> =
   };
 
 export type InfiniteAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}> =
-  PaginatedAsyncChunk<T[], E> & {
-    setParams: (params: Partial<Record<keyof P, P[keyof P] | null>>) => void;
-    clearParams: () => void;
-    reload: (params?: Partial<P>) => Promise<void>;
-    refresh: (params?: Partial<P>) => Promise<void>;
-    forceCleanup: () => void;
-  };
+  PaginatedParamAsyncChunk<T[], E, P & { page: number; pageSize: number }>;
 
 /**
  * Creates an infinite scroll async chunk that accumulates pages.
  *
- * A convenience wrapper around `asyncChunk` with `pagination.mode: 'accumulate'`
+ * A convenience wrapper around `paginatedAsyncChunk` with `pagination.mode: 'accumulate'`
  * pre-configured. Each `nextPage()` appends to the existing data array.
- *
- * @param fetcher - Async function receiving `{ page, pageSize, ...params }`,
- *   returning `{ data: T[], hasMore?, total? }`.
- * @param options.pageSize - Items per page (default: 10).
- * @param options.key - Deduplication key.
- * @param options.onSuccess - Called with the full accumulated array after each fetch.
  *
  * @example
  * const posts = infiniteAsyncChunk(
@@ -49,8 +37,8 @@ export function infiniteAsyncChunk<
 ): InfiniteAsyncChunk<T, E, P> {
   const { pageSize = 10, ...rest } = options;
 
-  return asyncChunk<T[], E, P & { page: number; pageSize: number }>(
-    fetcher,
+  return paginatedAsyncChunk<T[], E, P>(
+    fetcher as any,
     {
       ...rest,
       pagination: {
@@ -59,5 +47,5 @@ export function infiniteAsyncChunk<
         initialPage: 1,
       },
     }
-  ) as InfiniteAsyncChunk<T, E, P>;
+  );
 }
