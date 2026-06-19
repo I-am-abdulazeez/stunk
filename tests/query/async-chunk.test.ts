@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { asyncChunk, type PaginatedParamAsyncChunk } from "../../src/query/async-chunk";
+import { asyncChunk, paginatedAsyncChunk, type PaginatedParamAsyncChunk } from "../../src/query/async-chunk";
 import { chunk } from "../../src/core/core";
 interface User {
   id: number;
@@ -662,9 +662,9 @@ describe('asyncChunk — pagination', () => {
       }, 50);
     };
 
-    const usersChunk = asyncChunk(fetchUsers, {
+    const usersChunk = paginatedAsyncChunk(fetchUsers, {
       pagination: { pageSize: 10, mode: 'replace' }
-    }) as PaginatedParamAsyncChunk<User[], Error, { page: number; pageSize: number }>;
+    });
 
     usersChunk.reload();
     await delay(100);
@@ -696,9 +696,9 @@ describe('asyncChunk — pagination', () => {
       }, 50);
     };
 
-    const postsChunk = asyncChunk(fetchPosts, {
+    const postsChunk = paginatedAsyncChunk(fetchPosts, {
       pagination: { pageSize: 5, mode: 'accumulate' }
-    }) as PaginatedParamAsyncChunk<Post[], Error, { page: number; pageSize: number }>;
+    });
 
     postsChunk.reload();
     await delay(100);
@@ -719,9 +719,9 @@ describe('asyncChunk — pagination', () => {
     const fetchData = async ({ page }: { page: number }) =>
       createDelayedResponse({ data: [{ page, value: `Page ${page}` }], hasMore: page < 5 }, 50);
 
-    const dataChunk = asyncChunk(fetchData, {
+    const dataChunk = paginatedAsyncChunk(fetchData, {
       pagination: { pageSize: 1, mode: 'replace' }
-    }) as PaginatedParamAsyncChunk<any[], Error, { page: number }>;
+    });
 
     dataChunk.reload();
     await delay(100);
@@ -737,9 +737,9 @@ describe('asyncChunk — pagination', () => {
     const fetchData = async ({ page }: { page: number }) =>
       createDelayedResponse({ data: [{ page }] }, 50);
 
-    const dataChunk = asyncChunk(fetchData, {
+    const dataChunk = paginatedAsyncChunk(fetchData, {
       pagination: { initialPage: 3, pageSize: 1 }
-    }) as PaginatedParamAsyncChunk<any[], Error, { page: number }>;
+    });
 
     dataChunk.reload();
     await delay(100);
@@ -756,9 +756,9 @@ describe('asyncChunk — pagination', () => {
     const fetchData = async ({ page }: { page: number }) =>
       createDelayedResponse({ data: [{ page }] }, 50);
 
-    const dataChunk = asyncChunk(fetchData, {
+    const dataChunk = paginatedAsyncChunk(fetchData, {
       pagination: { pageSize: 1 }
-    }) as PaginatedParamAsyncChunk<any[], Error, { page: number }>;
+    });
 
     dataChunk.reload();
     await delay(100);
@@ -773,9 +773,9 @@ describe('asyncChunk — pagination', () => {
     const fetchData = async ({ page }: { page: number }) =>
       createDelayedResponse({ data: [{ page }] }, 50);
 
-    const dataChunk = asyncChunk(fetchData, {
+    const dataChunk = paginatedAsyncChunk(fetchData, {
       pagination: { pageSize: 1, mode: 'accumulate' }
-    }) as PaginatedParamAsyncChunk<any[], Error, { page: number }>;
+    });
 
     dataChunk.reload();
     await delay(100);
@@ -802,9 +802,9 @@ describe('asyncChunk — pagination', () => {
       return createDelayedResponse({ data: [{ page }], hasMore: false }, 50);
     };
 
-    const dataChunk = asyncChunk(fetchData, {
+    const dataChunk = paginatedAsyncChunk(fetchData, {
       pagination: { pageSize: 1 }
-    }) as PaginatedParamAsyncChunk<any[], Error, { page: number }>;
+    });
 
     dataChunk.reload();
     await delay(100);
@@ -895,23 +895,21 @@ describe('asyncChunk — reactive enabled', () => {
     const { chunk } = await import('../../src/core/core');
     const tokenChunk = chunk<string | null>(null);
 
-    const postsChunk = asyncChunk<string[]>(
-      async () => ['post1', 'post2'],
+    const postsChunk = paginatedAsyncChunk<string[], Error, {}>(
+      async () => ({ data: ['post1', 'post2'] }),
       {
         enabled: () => !!tokenChunk.get(),
         pagination: { mode: 'accumulate', pageSize: 2 },
       }
     );
 
-    // Login — first fetch
     tokenChunk.set('my-token');
     await delay(100);
     expect(postsChunk.get().data).toEqual(['post1', 'post2']);
 
-    // Reload — should replace not accumulate
     await postsChunk.reload();
     await delay(100);
-    expect(postsChunk.get().data).toEqual(['post1', 'post2']); // still 2, not 4
+    expect(postsChunk.get().data).toEqual(['post1', 'post2']);
     expect(postsChunk.get().data).toHaveLength(2);
   });
 
@@ -921,9 +919,9 @@ describe('asyncChunk — reactive enabled', () => {
       hasMore: true,
     }));
 
-    const searchChunk = asyncChunk(fetcher, {
+    const searchChunk = paginatedAsyncChunk(fetcher, {
       pagination: { pageSize: 5, mode: 'replace' },
-    }) as PaginatedParamAsyncChunk<string[], Error, { search?: string }>;
+    });
 
     await searchChunk.reload();
     await searchChunk.nextPage();
