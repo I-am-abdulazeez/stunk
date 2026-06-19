@@ -190,12 +190,10 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     const unsubscribe = asyncChunk.subscribe((newState) => {
       const prev = prevStateRef.current;
 
-      // loading → success transition
       if (prev.loading && !newState.loading && !newState.error && newState.data !== null) {
         optionsRef.current.onSuccess?.(newState.data as T);
       }
 
-      // loading → error transition
       if (prev.loading && !newState.loading && newState.error) {
         optionsRef.current.onError?.(newState.error as E);
       }
@@ -207,7 +205,7 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     const { resolvedParams: rp, fetchOnMount: fom } = optionsRef.current;
     if (rp && hasSetParams(asyncChunk)) {
       asyncChunk.setParams(rp);
-    } else if (fom) {
+    } else if (fom || (enabled && initialState.data === null && !initialState.loading)) {
       asyncChunk.reload();
     }
 
