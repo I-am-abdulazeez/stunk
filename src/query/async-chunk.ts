@@ -18,6 +18,8 @@ export interface PaginationState {
   pageSize: number;
   total?: number;
   hasMore?: boolean;
+  /** Current cursor — only populated when using cursor-based pagination */
+  cursor?: string;
 }
 
 export interface AsyncStateWithPagination<T, E extends Error> extends AsyncState<T, E> {
@@ -44,6 +46,16 @@ export interface FetcherResponse<T> {
   data: T;
   total?: number;
   hasMore?: boolean;
+  /** Next cursor — only used when `pagination.cursorMode` is configured */
+  cursor?: string;
+}
+
+export interface CursorModeConfig<T> {
+  /**
+   * Extracts the next cursor from a fetch response. Return `undefined`
+   * when there are no more pages.
+   */
+  getNextCursor: (response: FetcherResponse<T>) => string | undefined;
 }
 
 export interface AsyncChunkOptions<T, E extends Error = Error, P extends Record<string, any> = {}> {
@@ -84,6 +96,12 @@ export interface AsyncChunkOptions<T, E extends Error = Error, P extends Record<
     pageSize?: number;
     /** Replace data on each page load, or accumulate for infinite scroll (default: 'replace') */
     mode?: 'replace' | 'accumulate';
+    /**
+     * Switches the chunk to cursor-based pagination. When set, `page` is
+     * ignored — the chunk tracks an opaque `cursor` string supplied by
+     * your fetcher's response instead of an incrementing page number.
+     */
+    cursorMode?: CursorModeConfig<T>;
   };
 }
 
@@ -154,6 +172,7 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
 
   const isPaginated = !!paginationConfig;
   const paginationMode = paginationConfig?.mode || 'replace';
+  const isCursorMode = !!paginationConfig?.cursorMode;
   const expectsParams = fetcher.length > 0;
 
   const initialState: AsyncStateWithPagination<T, E> = {
@@ -167,6 +186,7 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
       pageSize: paginationConfig.pageSize || 10,
       total: undefined,
       hasMore: undefined,
+      cursor: undefined,
     } : undefined,
   };
 
@@ -256,8 +276,14 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         if (isPaginated) {
           const currentPagination = baseChunk.get().pagination;
           if (currentPagination) {
-            fetchParams.page = currentPagination.page;
-            fetchParams.pageSize = currentPagination.pageSize;
+            if (isCursorMode) {
+              // Cursor mode — pass the current cursor, omit page entirely
+              fetchParams.cursor = currentPagination.cursor;
+              fetchParams.pageSize = currentPagination.pageSize;
+            } else {
+              fetchParams.page = currentPagination.page;
+              fetchParams.pageSize = currentPagination.pageSize;
+            }
           }
         }
 
@@ -268,12 +294,17 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         let data: T;
         let total: number | undefined;
         let hasMore: boolean | undefined;
+        let nextCursor: string | undefined;
 
         if (result && typeof result === 'object' && 'data' in result) {
           const response = result as FetcherResponse<T>;
           data = response.data;
           total = response.total;
           hasMore = response.hasMore;
+
+          if (isCursorMode) {
+            nextCursor = paginationConfig!.cursorMode!.getNextCursor(response);
+          }
         } else {
           data = result as T;
         }
@@ -300,7 +331,8 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
           pagination: isPaginated ? {
             ...freshState.pagination!,
             total,
-            hasMore,
+            hasMore: isCursorMode ? (nextCursor !== undefined) : hasMore,
+            cursor: isCursorMode ? nextCursor : freshState.pagination!.cursor,
           } : undefined,
         });
 
@@ -417,7 +449,11 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
           baseChunk.set({
             ...state,
             data: paginationMode === 'accumulate' ? initialData : state.data,
-            pagination: { ...state.pagination, page: paginationConfig?.initialPage || 1 },
+            pagination: {
+              ...state.pagination,
+              page: paginationConfig?.initialPage || 1,
+              cursor: undefined,
+            },
           });
         }
       }
@@ -438,16 +474,28 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
       nextPage: async () => {
         const state = baseChunk.get();
         if (!state.pagination || state.pagination.hasMore === false) return;
-        baseChunk.set({
-          ...state,
-          pagination: { ...state.pagination, page: state.pagination.page + 1 }
-        });
-        isNextPageFetch = true;
-        await fetchData(currentParams, retryCount, true);
-        isNextPageFetch = false;
+
+        if (isCursorMode) {
+          // Cursor mode — no page increment, fetchData reads the stored cursor
+          isNextPageFetch = true;
+          await fetchData(currentParams, retryCount, true);
+          isNextPageFetch = false;
+        } else {
+          baseChunk.set({
+            ...state,
+            pagination: { ...state.pagination, page: state.pagination.page + 1 }
+          });
+          isNextPageFetch = true;
+          await fetchData(currentParams, retryCount, true);
+          isNextPageFetch = false;
+        }
       },
 
       prevPage: async () => {
+        if (isCursorMode) {
+          // Cursor pagination is forward-only — no previous-page concept
+          return;
+        }
         const state = baseChunk.get();
         if (!state.pagination || state.pagination.page <= 1) return;
         baseChunk.set({
@@ -458,6 +506,10 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
       },
 
       goToPage: async (page: number) => {
+        if (isCursorMode) {
+          // Not supported in cursor mode — cursors aren't addressable by number
+          return;
+        }
         const state = baseChunk.get();
         if (!state.pagination || page < 1) return;
         baseChunk.set({
@@ -473,7 +525,11 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         baseChunk.set({
           ...state,
           data: paginationMode === 'accumulate' ? initialData : state.data,
-          pagination: { ...state.pagination, page: paginationConfig?.initialPage || 1 }
+          pagination: {
+            ...state.pagination,
+            page: paginationConfig?.initialPage || 1,
+            cursor: undefined,
+          }
         });
         await fetchData(currentParams, retryCount, true);
       },
@@ -483,23 +539,6 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
   return baseInstance;
 }
 
-/**
- * Creates a reactive async state unit for data fetching (no pagination).
- *
- * Tracks `loading`, `error`, `data`, and `lastFetched`. Fetchers with no
- * parameters auto-fetch on creation. Fetchers with parameters wait for
- * `setParams()` or `reload()`.
- *
- * For paginated lists, use `paginatedAsyncChunk` instead — it returns a
- * dedicated type with `nextPage`/`prevPage`/`goToPage`/`resetPagination`
- * and never requires a type cast at the call site.
- *
- * @example
- * const users = asyncChunk(() => fetchUsers());
- *
- * const user = asyncChunk(({ id }: { id: number }) => fetchUser(id));
- * user.setParams({ id: 1 });
- */
 export function asyncChunk<T, E extends Error = Error>(
   fetcher: () => Promise<T | FetcherResponse<T>>,
   options?: Omit<AsyncChunkOptions<T, E>, 'pagination'>
@@ -517,24 +556,37 @@ export function asyncChunk<T, E extends Error = Error, P extends Record<string, 
 
 /**
  * Creates a paginated async state unit — always returns `PaginatedParamAsyncChunk`
- * with `nextPage`/`prevPage`/`goToPage`/`resetPagination`. No overload ambiguity,
- * no type casts needed at the call site.
+ * with `nextPage`/`prevPage`/`goToPage`/`resetPagination`.
  *
- * @param fetcher - Async function receiving `{ page, pageSize, ...params }`,
- *   returning `{ data: T, total?, hasMore? }`.
- * @param options.pagination - Required. `mode: 'replace'` for page-based UIs,
- *   `'accumulate'` for infinite scroll (or use `infiniteAsyncChunk` directly).
+ * Supports two pagination strategies via `options.pagination`:
+ * - Page-number based (default) — `nextPage`/`prevPage`/`goToPage` all work.
+ * - Cursor based — set `pagination.cursorMode`; `nextPage` fetches using the
+ *   cursor from the previous response, `prevPage`/`goToPage` are no-ops
+ *   (cursor pagination is forward-only by nature).
  *
  * @example
+ * // Page-based
  * const usersList = paginatedAsyncChunk(
- *   ({ page, pageSize, search }) => fetchUsers({ page, pageSize, search }),
- *   { pagination: { pageSize: 20, mode: 'replace' } }
+ *   ({ page, pageSize }) => fetchUsers({ page, pageSize }),
+ *   { pagination: { pageSize: 20 } }
  * );
- * usersList.setParams({ search: 'john' }); // resets to page 1, refetches
- * usersList.goToPage(2);
+ *
+ * @example
+ * // Cursor-based
+ * const conversations = paginatedAsyncChunk(
+ *   ({ cursor, pageSize }) => fetchConversations({ cursor, limit: pageSize }),
+ *   {
+ *     pagination: {
+ *       pageSize: 20,
+ *       mode: 'accumulate',
+ *       cursorMode: { getNextCursor: (res) => res.cursor },
+ *     },
+ *   }
+ * );
+ * conversations.nextPage(); // fetches using the cursor from the last response
  */
 export function paginatedAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
-  fetcher: (params: P & { page: number; pageSize: number }) => Promise<FetcherResponse<T>>,
+  fetcher: (params: P & { page?: number; pageSize: number; cursor?: string }) => Promise<FetcherResponse<T>>,
   options: AsyncChunkOptions<T, E, P> & { pagination: NonNullable<AsyncChunkOptions<T, E, P>['pagination']> }
 ): PaginatedParamAsyncChunk<T, E, P> {
   return createAsyncChunkInternal(fetcher as any, options) as PaginatedParamAsyncChunk<T, E, P>;
