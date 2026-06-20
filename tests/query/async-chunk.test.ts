@@ -934,3 +934,248 @@ describe('asyncChunk — reactive enabled', () => {
     expect(searchChunk.get().pagination?.page).toBe(1);
   });
 });
+
+describe('asyncChunk — cursor pagination', () => {
+  it('should fetch the first page with no cursor and track hasMore', async () => {
+    const fetchConversations = async ({ cursor, pageSize }: { cursor?: string; pageSize: number }) => {
+      expect(cursor).toBeUndefined();
+      return createDelayedResponse({
+        data: Array.from({ length: pageSize }, (_, i) => ({ id: `conv-${i + 1}` })),
+        cursor: 'cursor-page-2',
+      }, 50);
+    };
+
+    const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+      pagination: {
+        pageSize: 5,
+        mode: 'accumulate',
+        cursorMode: { getNextCursor: (res) => res.cursor },
+      },
+    });
+
+    conversationsChunk.reload();
+    await delay(100);
+
+    const state = conversationsChunk.get();
+    expect(state.data).toHaveLength(5);
+    expect(state.pagination?.cursor).toBe('cursor-page-2');
+    expect(state.pagination?.hasMore).toBe(true);
+  });
+
+  it('should fetch the next page using the cursor from the previous response', async () => {
+    const cursorsSeen: (string | undefined)[] = [];
+
+    const fetchConversations = async ({ cursor, pageSize }: { cursor?: string; pageSize: number }) => {
+      cursorsSeen.push(cursor);
+      const isFirstPage = cursor === undefined;
+      return createDelayedResponse({
+        data: Array.from({ length: pageSize }, (_, i) => ({
+          id: isFirstPage ? `conv-${i + 1}` : `conv-${i + 6}`,
+        })),
+        cursor: isFirstPage ? 'cursor-page-2' : undefined,
+      }, 50);
+    };
+
+    const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+      pagination: {
+        pageSize: 5,
+        mode: 'accumulate',
+        cursorMode: { getNextCursor: (res) => res.cursor },
+      },
+    });
+
+    conversationsChunk.reload();
+    await delay(100);
+
+    await conversationsChunk.nextPage();
+    await delay(100);
+
+    expect(cursorsSeen).toEqual([undefined, 'cursor-page-2']);
+
+    const state = conversationsChunk.get();
+    expect(state.data).toHaveLength(10);
+    expect((state.data as any[])[0].id).toBe('conv-1');
+    expect((state.data as any[])[9].id).toBe('conv-10');
+  });
+
+  it('should set hasMore to false when getNextCursor returns undefined', async () => {
+    const fetchConversations = async () =>
+      createDelayedResponse({ data: [{ id: 'conv-1' }], cursor: undefined }, 50);
+
+    const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+      pagination: {
+        pageSize: 5,
+        cursorMode: { getNextCursor: (res) => res.cursor },
+      },
+    });
+
+    conversationsChunk.reload();
+    await delay(100);
+
+    expect(conversationsChunk.get().pagination?.hasMore).toBe(false);
+    expect(conversationsChunk.get().pagination?.cursor).toBeUndefined();
+  });
+
+  it('should not advance when nextPage is called and hasMore is false', async () => {
+    let fetchCount = 0;
+    const fetchConversations = async () => {
+      fetchCount++;
+      return createDelayedResponse({ data: [{ id: 'conv-1' }], cursor: undefined }, 50);
+    };
+
+    const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+      pagination: {
+        pageSize: 5,
+        cursorMode: { getNextCursor: (res) => res.cursor },
+      },
+    });
+
+    conversationsChunk.reload();
+    await delay(100);
+    const countAfterLoad = fetchCount;
+
+    await conversationsChunk.nextPage();
+    await delay(100);
+
+    expect(fetchCount).toBe(countAfterLoad);
+  });
+
+  it('should treat prevPage as a no-op in cursor mode', async () => {
+    let fetchCount = 0;
+    const fetchConversations = async () => {
+      fetchCount++;
+      return createDelayedResponse({ data: [{ id: 'conv-1' }], cursor: 'cursor-2' }, 50);
+    };
+
+    const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+      pagination: {
+        pageSize: 5,
+        cursorMode: { getNextCursor: (res) => res.cursor },
+      },
+    });
+
+    conversationsChunk.reload();
+    await delay(100);
+    const countAfterLoad = fetchCount;
+
+    await conversationsChunk.prevPage();
+    await delay(50);
+
+    expect(fetchCount).toBe(countAfterLoad); // no new fetch
+  });
+
+  it('should treat goToPage as a no-op in cursor mode', async () => {
+    let fetchCount = 0;
+    const fetchConversations = async () => {
+      fetchCount++;
+      return createDelayedResponse({ data: [{ id: 'conv-1' }], cursor: 'cursor-2' }, 50);
+    };
+
+    const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+      pagination: {
+        pageSize: 5,
+        cursorMode: { getNextCursor: (res) => res.cursor },
+      },
+    });
+
+    conversationsChunk.reload();
+    await delay(100);
+    const countAfterLoad = fetchCount;
+
+    await conversationsChunk.goToPage(3);
+    await delay(50);
+
+    expect(fetchCount).toBe(countAfterLoad); // no new fetch
+  });
+
+  it('should reset cursor to undefined on resetPagination', async () => {
+    let lastCursor: string | undefined;
+
+    const fetchConversations = async ({ cursor }: { cursor?: string; pageSize: number }) => {
+      lastCursor = cursor;
+      return createDelayedResponse({
+        data: [{ id: cursor ?? 'first' }],
+        cursor: cursor ? undefined : 'cursor-2',
+      }, 50);
+    };
+
+    const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+      pagination: {
+        pageSize: 5,
+        mode: 'accumulate',
+        cursorMode: { getNextCursor: (res) => res.cursor },
+      },
+    });
+
+    conversationsChunk.reload();
+    await delay(100);
+
+    await conversationsChunk.nextPage();
+    await delay(100);
+
+    expect(conversationsChunk.get().data).toHaveLength(2);
+
+    await conversationsChunk.resetPagination();
+    await delay(100);
+
+    expect(lastCursor).toBeUndefined();
+    expect(conversationsChunk.get().data).toHaveLength(1);
+    expect(conversationsChunk.get().pagination?.cursor).toBe('cursor-2');
+  });
+
+  it('should reset cursor to undefined when setParams is called', async () => {
+    const cursorsSeen: (string | undefined)[] = [];
+
+    const fetchConversations = async ({ cursor }: { cursor?: string; pageSize: number; search?: string }) => {
+      cursorsSeen.push(cursor);
+      return createDelayedResponse({
+        data: [{ id: cursor ?? 'first' }],
+        cursor: 'cursor-2',
+      }, 50);
+    };
+
+    const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+      pagination: {
+        pageSize: 5,
+        mode: 'accumulate',
+        cursorMode: { getNextCursor: (res) => res.cursor },
+      },
+    });
+
+    conversationsChunk.reload();
+    await delay(100);
+
+    await conversationsChunk.nextPage();
+    await delay(100);
+
+    expect(conversationsChunk.get().pagination?.cursor).toBe('cursor-2');
+
+    conversationsChunk.setParams({ search: 'foo' });
+    await delay(100);
+
+    expect(cursorsSeen.at(-1)).toBeUndefined(); // cursor reset before this fetch
+  });
+
+  it('should not pass a page field to the fetcher in cursor mode', async () => {
+    let receivedParams: any;
+
+    const fetchConversations = async (params: { cursor?: string; pageSize: number }) => {
+      receivedParams = params;
+      return createDelayedResponse({ data: [{ id: '1' }], cursor: undefined }, 50);
+    };
+
+    const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+      pagination: {
+        pageSize: 5,
+        cursorMode: { getNextCursor: (res) => res.cursor },
+      },
+    });
+
+    conversationsChunk.reload();
+    await delay(100);
+
+    expect(receivedParams).toHaveProperty('cursor');
+    expect(receivedParams).toHaveProperty('pageSize');
+    expect(receivedParams).not.toHaveProperty('page');
+  });
+});
