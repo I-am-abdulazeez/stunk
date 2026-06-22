@@ -1178,4 +1178,23 @@ describe('asyncChunk — cursor pagination', () => {
     expect(receivedParams).toHaveProperty('pageSize');
     expect(receivedParams).not.toHaveProperty('page');
   });
+  it('should fire exactly one fetch when setParams is called', async () => {
+    let fetchCount = 0;
+    const chunk = paginatedAsyncChunk(
+      async ({ page, pageSize, status }: { page: number; pageSize: number; status?: string }) => {
+        fetchCount++;
+        return { data: [{ id: fetchCount }], hasMore: false };
+      },
+      { pagination: { pageSize: 5, mode: 'replace' } }
+    );
+
+    chunk.reload();
+    await delay(50);
+    const countAfterMount = fetchCount;
+
+    chunk.setParams({ status: 'open' });
+    await delay(50);
+
+    expect(fetchCount).toBe(countAfterMount + 1); // exactly one new fetch, not two
+  });
 });

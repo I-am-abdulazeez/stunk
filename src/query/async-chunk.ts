@@ -254,6 +254,8 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
 
     if (!force && !isStale() && baseChunk.get().data !== null) return;
 
+    console.trace('fetchData called with currentParams:', JSON.stringify(currentParams));
+
     if (inFlightRequests.has(chunkKey)) {
       return inFlightRequests.get(chunkKey)!;
     }
