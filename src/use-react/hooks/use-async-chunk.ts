@@ -177,7 +177,11 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     prevEnabledRef.current = enabled;
 
     if (!wasEnabled && enabled) {
-      asyncChunk.reload();
+      // Only reload if we're not managing params via the params option
+      // If params are provided, the paramsKey effect handles the fetch
+      if (!optionsRef.current.resolvedParams) {
+        asyncChunk.reload();
+      }
     }
   }, [enabled, asyncChunk]);
 
