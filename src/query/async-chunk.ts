@@ -245,7 +245,6 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
     }
   };
 
-  let paramsVersion = 0;
 
 
   const fetchData = async (params?: Partial<P>, retries = retryCount, force = false): Promise<void> => {
@@ -261,8 +260,8 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
       return inFlightRequests.get(chunkKey)!;
     }
 
-    const versionAtFetchStart = paramsVersion; // capture current version
-
+    // Snapshot params key at fetch start — used to detect stale responses
+    const paramsKeyAtStart = JSON.stringify(currentParams);
 
     const state = baseChunk.get();
     const previousData = state.data;
@@ -283,7 +282,6 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
           const currentPagination = baseChunk.get().pagination;
           if (currentPagination) {
             if (isCursorMode) {
-              // Cursor mode — pass the current cursor, omit page entirely
               fetchParams.cursor = currentPagination.cursor;
               fetchParams.pageSize = currentPagination.pageSize;
             } else {
@@ -297,9 +295,8 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
           ? await fetcher(fetchParams)
           : await (fetcher as () => Promise<T | FetcherResponse<T>>)();
 
-        // Check AFTER the await — this is where stale responses are caught
-        if (versionAtFetchStart !== paramsVersion) {
-          inFlightRequests.delete(chunkKey);
+        // Discard stale response — params changed while this fetch was in flight
+        if (JSON.stringify(currentParams) !== paramsKeyAtStart) {
           return;
         }
 
@@ -313,7 +310,6 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
           data = response.data;
           total = response.total;
           hasMore = response.hasMore;
-
           if (isCursorMode) {
             nextCursor = paginationConfig!.cursorMode!.getNextCursor(response);
           }
@@ -351,8 +347,8 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         setCacheTimeout();
         if (onSuccess) onSuccess(data);
       } catch (error) {
-        if (versionAtFetchStart !== paramsVersion) {
-          inFlightRequests.delete(chunkKey);
+        // Discard stale error too
+        if (JSON.stringify(currentParams) !== paramsKeyAtStart) {
           return;
         }
         if (retries > 0) {
@@ -458,7 +454,6 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         }
       }
       currentParams = next;
-      paramsVersion++; // increment on every params change
 
       if (isPaginated) {
         const state = baseChunk.get();
