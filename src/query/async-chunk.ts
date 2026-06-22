@@ -445,6 +445,9 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
       }
       currentParams = next;
 
+      // Cancel any in-flight request for this chunk before starting a new one
+      inFlightRequests.delete(chunkKey);
+
       if (isPaginated) {
         const state = baseChunk.get();
         if (state.pagination) {
