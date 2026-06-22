@@ -245,6 +245,9 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
     }
   };
 
+  let paramsVersion = 0;
+
+
   const fetchData = async (params?: Partial<P>, retries = retryCount, force = false): Promise<void> => {
     if (!isEnabled()) return;
 
@@ -254,11 +257,12 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
 
     if (!force && !isStale() && baseChunk.get().data !== null) return;
 
-    console.trace('fetchData called with currentParams:', JSON.stringify(currentParams));
-
     if (inFlightRequests.has(chunkKey)) {
       return inFlightRequests.get(chunkKey)!;
     }
+
+    const versionAtFetchStart = paramsVersion; // capture current version
+
 
     const state = baseChunk.get();
     const previousData = state.data;
@@ -292,6 +296,12 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         const result = expectsParams
           ? await fetcher(fetchParams)
           : await (fetcher as () => Promise<T | FetcherResponse<T>>)();
+
+        // Check AFTER the await — this is where stale responses are caught
+        if (versionAtFetchStart !== paramsVersion) {
+          inFlightRequests.delete(chunkKey);
+          return;
+        }
 
         let data: T;
         let total: number | undefined;
@@ -341,6 +351,10 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         setCacheTimeout();
         if (onSuccess) onSuccess(data);
       } catch (error) {
+        if (versionAtFetchStart !== paramsVersion) {
+          inFlightRequests.delete(chunkKey);
+          return;
+        }
         if (retries > 0) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           inFlightRequests.delete(chunkKey);
@@ -444,9 +458,7 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         }
       }
       currentParams = next;
-
-      // Cancel any in-flight request for this chunk before starting a new one
-      inFlightRequests.delete(chunkKey);
+      paramsVersion++; // increment on every params change
 
       if (isPaginated) {
         const state = baseChunk.get();
