@@ -225,8 +225,9 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
       isMountedRef.current = true;
       return;
     }
-    if (resolvedParams && hasSetParams(asyncChunk)) {
-      asyncChunk.setParams(resolvedParams);
+    const freshParams = optionsRef.current.resolvedParams;
+    if (freshParams && hasSetParams(asyncChunk)) {
+      asyncChunk.setParams(freshParams);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramsKey]);
