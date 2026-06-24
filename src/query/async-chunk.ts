@@ -198,6 +198,7 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
   let windowFocusHandler: (() => void) | null = null;
   let subscriberCount = 0;
   let isNextPageFetch = false;
+  let isCancelled = false;
 
   const isStale = () => {
     const state = baseChunk.get();
@@ -302,10 +303,16 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
           return;
         }
 
+        // Discard if cancelled
+        if (isCancelled) {
+          return;
+        }
+
         let data: T;
         let total: number | undefined;
         let hasMore: boolean | undefined;
         let nextCursor: string | undefined;
+
 
         if (result && typeof result === 'object' && 'data' in result) {
           const response = result as FetcherResponse<T>;
@@ -416,7 +423,17 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
       };
     },
 
+    cancel: () => {
+      isCancelled = true;
+      inFlightRequests.delete(chunkKey);
+      const state = baseChunk.get();
+      if (state.loading) {
+        baseChunk.set({ ...state, loading: false });
+      }
+    },
+
     reload: async (params?: Partial<P>) => {
+      isCancelled = false; // reset on new fetch
       if (expectsParams && !isPaginated && Object.keys(currentParams as object).length === 0) return;
       await fetchData(params, retryCount, true);
     },
@@ -447,6 +464,7 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
     },
 
     setParams: (params: Partial<Record<keyof P, P[keyof P] | null>>) => {
+      isCancelled = false;
       const next = { ...currentParams };
       for (const key in params) {
         if (params[key] === null) {
@@ -473,14 +491,6 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
       }
 
       if (isEnabled()) fetchData(currentParams as Partial<P>, retryCount, true);
-    },
-
-    cancel: () => {
-      inFlightRequests.delete(chunkKey);
-      const state = baseChunk.get();
-      if (state.loading) {
-        baseChunk.set({ ...state, loading: false });
-      }
     },
 
     clearParams: () => {

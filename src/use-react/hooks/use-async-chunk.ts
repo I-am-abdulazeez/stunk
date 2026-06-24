@@ -172,14 +172,16 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
 
   const prevEnabledRef = useRef(enabled);
 
-  // Replace the existing enabled effect:
   useEffect(() => {
     const wasEnabled = prevEnabledRef.current;
     prevEnabledRef.current = enabled;
 
     if (!wasEnabled && enabled) {
       // enabled flipped true → fetch
-      if (!optionsRef.current.resolvedParams) {
+      const { resolvedParams: rp } = optionsRef.current;
+      if (rp && hasSetParams(asyncChunk)) {
+        asyncChunk.setParams(rp); // ← use setParams when we have params
+      } else {
         asyncChunk.reload();
       }
     } else if (wasEnabled && !enabled) {
@@ -209,9 +211,10 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
       setState(newState);
     });
 
+    // In the mount effect — guard setParams with enabled:
     const { resolvedParams: rp, fetchOnMount: fom } = optionsRef.current;
     if (rp && hasSetParams(asyncChunk)) {
-      asyncChunk.setParams(rp);
+      if (enabled) asyncChunk.setParams(rp);
     } else if (fom || (enabled && initialState.data === null && !initialState.loading)) {
       asyncChunk.reload();
     }
@@ -232,11 +235,11 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
       isMountedRef.current = true;
       return;
     }
+    if (!enabled) return;
     const freshParams = optionsRef.current.resolvedParams;
     if (freshParams && hasSetParams(asyncChunk)) {
       asyncChunk.setParams(freshParams);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramsKey]);
 
   // Memoized methods
