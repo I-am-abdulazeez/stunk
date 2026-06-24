@@ -172,16 +172,19 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
 
   const prevEnabledRef = useRef(enabled);
 
+  // Replace the existing enabled effect:
   useEffect(() => {
     const wasEnabled = prevEnabledRef.current;
     prevEnabledRef.current = enabled;
 
     if (!wasEnabled && enabled) {
-      // Only reload if we're not managing params via the params option
-      // If params are provided, the paramsKey effect handles the fetch
+      // enabled flipped true → fetch
       if (!optionsRef.current.resolvedParams) {
         asyncChunk.reload();
       }
+    } else if (wasEnabled && !enabled) {
+      // enabled flipped false → cancel in-flight + clear loading
+      (asyncChunk as any).cancel?.();
     }
   }, [enabled, asyncChunk]);
 

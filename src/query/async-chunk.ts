@@ -120,6 +120,8 @@ export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState
   forceCleanup: () => void;
   /** Clear all current params and refetch */
   clearParams: () => void;
+  /** Cancel any in-flight request and set loading to false */
+  cancel: () => void;
 }
 
 export interface PaginatedAsyncChunk<T, E extends Error = Error> extends AsyncChunk<T, E> {
@@ -471,6 +473,14 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
       }
 
       if (isEnabled()) fetchData(currentParams as Partial<P>, retryCount, true);
+    },
+
+    cancel: () => {
+      inFlightRequests.delete(chunkKey);
+      const state = baseChunk.get();
+      if (state.loading) {
+        baseChunk.set({ ...state, loading: false });
+      }
     },
 
     clearParams: () => {
