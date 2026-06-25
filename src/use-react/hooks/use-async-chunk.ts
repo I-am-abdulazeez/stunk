@@ -13,7 +13,6 @@ function isPaginatedChunk<T, E extends Error>(
   return 'nextPage' in c;
 }
 
-// Type guard to check if chunk has setParams
 function hasSetParams<T, E extends Error, P extends Record<string, any>>(
   c: AsyncChunk<T, E> | (AsyncChunk<T, E> & { setParams: (params: Partial<P>) => void })
 ): c is AsyncChunk<T, E> & { setParams: (params: Partial<P>) => void } {
@@ -26,28 +25,24 @@ function hasClearParams<T, E extends Error>(
   return 'clearParams' in c;
 }
 
-// Return type for hook without pagination or params
 interface UseAsyncChunkResult<T, E extends Error, P extends Record<string, any>> {
   data: T | null;
   loading: boolean;
   error: E | null;
   lastFetched?: number;
-  /** True when showing stale data while a new fetch is in progress (keepPreviousData: true) */
   isPlaceholderData: boolean;
   reload: (params?: Partial<P>) => Promise<void>;
   refresh: (params?: Partial<P>) => Promise<void>;
-  mutate: (mutator: (currentData: T | null) => T) => void;
+  mutate: (mutator: (currentData: T | null) => T | null) => void;
   reset: () => void;
 }
 
-// Return type with setParams and clearParams
 interface UseAsyncChunkResultWithParams<T, E extends Error, P extends Record<string, any>>
   extends UseAsyncChunkResult<T, E, P> {
   setParams: (params: Partial<Record<keyof P, P[keyof P] | null>>) => void;
   clearParams: () => void;
 }
 
-// Return type with pagination
 interface UseAsyncChunkResultWithPagination<T, E extends Error, P extends Record<string, any>>
   extends UseAsyncChunkResult<T, E, P> {
   pagination?: PaginationState;
@@ -57,12 +52,10 @@ interface UseAsyncChunkResultWithPagination<T, E extends Error, P extends Record
   resetPagination: () => Promise<void>;
 }
 
-// Return type with both params and pagination
 interface UseAsyncChunkResultWithParamsAndPagination<T, E extends Error, P extends Record<string, any>>
   extends UseAsyncChunkResultWithParams<T, E, P>,
   Omit<UseAsyncChunkResultWithPagination<T, E, P>, keyof UseAsyncChunkResult<T, E, P>> { }
 
-// Options
 export interface UseAsyncChunkOptions<T = any, E extends Error = Error, P extends Record<string, any> = {}> {
   /**
    * Parameters to pass to the fetcher. When these change between renders,
@@ -118,44 +111,10 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
   options?: UseAsyncChunkOptions<T, E, P>
 ): UseAsyncChunkResult<T, E, P>;
 
-/**
- * Subscribes to an async chunk and returns its full state with reactive updates.
- *
- * Automatically handles `loading`, `error`, `data`, and `isPlaceholderData`.
- * Pass `params` to trigger a fetch with parameters — when params change between
- * renders the chunk automatically re-fetches with the new values.
- *
- * Hook-level `onSuccess` and `onError` have full access to React context —
- * safe to call navigate(), setState(), or any other React hook side-effects.
- *
- * @param asyncChunk - The async chunk to subscribe to.
- * @param options.params - Params to pass to the fetcher. Re-fetches when changed.
- * @param options.fetchOnMount - Force fetch on mount for param-less chunks (default: false).
- * @param options.onSuccess - Called after every successful fetch. Has React context access.
- * @param options.onError - Called when a fetch fails. Has React context access.
- *
- * @example
- * const { data, loading } = useAsyncChunk(userChunk);
- *
- * @example
- * // Params — re-fetches automatically when id changes
- * const { data } = useAsyncChunk(houseChunk, { params: { id } });
- *
- * @example
- * // Hook-level callbacks — navigate, set state, anything React
- * const { data } = useAsyncChunk(profileChunk, {
- *   onSuccess: (data) => {
- *     if (!data) navigate('/login')
- *     setName(data.name)
- *   },
- *   onError: () => navigate('/error'),
- * });
- */
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
   asyncChunk: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>,
   options: UseAsyncChunkOptions<T, E, P> = {}
 ) {
-  // Support both `params` (new) and `initialParams` (deprecated alias)
   const resolvedParams = options.params ?? options.initialParams;
   const { fetchOnMount = false, onSuccess, onError, enabled = true } = options;
 
@@ -163,34 +122,41 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     () => asyncChunk.get()
   );
 
-  // Keep latest callbacks in a ref so they never cause effect re-runs
   const optionsRef = useRef({ resolvedParams, fetchOnMount, onSuccess, onError });
   optionsRef.current = { resolvedParams, fetchOnMount, onSuccess, onError };
 
-  // Track previous state to detect loading → settled transitions
   const prevStateRef = useRef<AsyncStateWithPagination<T, E>>(asyncChunk.get());
-
   const prevEnabledRef = useRef(enabled);
+
+  // FIX: Track whether the enabled-flip effect already dispatched a fetch
+  // for the current render cycle. When enabled flips true AND params change
+  // in the same render, both effects would fire — this flag lets the params
+  // effect skip its fetch since the enabled effect already covered it.
+  const enabledFlippedThisRenderRef = useRef(false);
 
   useEffect(() => {
     const wasEnabled = prevEnabledRef.current;
     prevEnabledRef.current = enabled;
 
+    // Reset the flag at the start of every enabled effect run
+    enabledFlippedThisRenderRef.current = false;
+
     if (!wasEnabled && enabled) {
-      // enabled flipped true → fetch
+      // enabled flipped true — fetch with current params
+      enabledFlippedThisRenderRef.current = true;
       const { resolvedParams: rp } = optionsRef.current;
       if (rp && hasSetParams(asyncChunk)) {
-        asyncChunk.setParams(rp); // ← use setParams when we have params
+        asyncChunk.setParams(rp);
       } else {
         asyncChunk.reload();
       }
     } else if (wasEnabled && !enabled) {
-      // enabled flipped false → cancel in-flight + clear loading
+      // enabled flipped false — cancel in-flight + clear loading
       (asyncChunk as any).cancel?.();
     }
   }, [enabled, asyncChunk]);
 
-  // Single effect — subscribe, initial fetch, and cleanup
+  // Mount effect — subscribe, initial fetch, cleanup
   useEffect(() => {
     const initialState = asyncChunk.get();
     setState(initialState);
@@ -211,7 +177,6 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
       setState(newState);
     });
 
-    // In the mount effect — guard setParams with enabled:
     const { resolvedParams: rp, fetchOnMount: fom } = optionsRef.current;
     if (rp && hasSetParams(asyncChunk)) {
       if (enabled) asyncChunk.setParams(rp);
@@ -225,8 +190,8 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     };
   }, [asyncChunk]);
 
-  // Params change effect — re-fetches when params change between renders.
-  // isMountedRef skips the first run since the mount effect above handles it.
+  // Params change effect — skips mount (isMountedRef) and skips when the
+  // enabled-flip effect already fired a fetch this render (enabledFlippedThisRenderRef).
   const isMountedRef = useRef(false);
   const paramsKey = resolvedParams ? JSON.stringify(resolvedParams) : null;
 
@@ -235,7 +200,17 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
       isMountedRef.current = true;
       return;
     }
+
+    // If enabled just flipped to true this render, the enabled effect
+    // already called setParams with the current params. Skip here to prevent
+    // a duplicate fetch.
+    if (enabledFlippedThisRenderRef.current) {
+      enabledFlippedThisRenderRef.current = false;
+      return;
+    }
+
     if (!enabled) return;
+
     const freshParams = optionsRef.current.resolvedParams;
     if (freshParams && hasSetParams(asyncChunk)) {
       asyncChunk.setParams(freshParams);
@@ -243,7 +218,6 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
   }, [paramsKey]);
 
   // Memoized methods
-
   const reload = useCallback(
     (params?: Partial<P>) => asyncChunk.reload(params),
     [asyncChunk]
@@ -255,7 +229,7 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
   );
 
   const mutate = useCallback(
-    (mutator: (currentData: T | null) => T) => asyncChunk.mutate(mutator),
+    (mutator: (currentData: T | null) => T | null) => asyncChunk.mutate(mutator),
     [asyncChunk]
   );
 
