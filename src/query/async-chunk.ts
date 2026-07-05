@@ -447,9 +447,22 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
 
     reload: async (params?: Partial<P>) => {
       isCancelled = false;
-      // Guard: parameterized chunks must have params set before reload() is meaningful.
-      // Prevents invalidates from firing fetchers with undefined params.
       if (expectsParams && !isPaginated && Object.keys(currentParams as object).length === 0) return;
+
+      if (isPaginated) {
+        const state = baseChunk.get();
+        if (state.pagination) {
+          baseChunk.set({
+            ...state,
+            pagination: {
+              ...state.pagination,
+              page: paginationConfig?.initialPage || 1,
+              cursor: undefined,
+            },
+          });
+        }
+      }
+
       await fetchData(params, retryCount, true);
     },
 
@@ -465,9 +478,9 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
     reset: () => {
       teardownSideEffects();
       currentParams = {};
-      baseChunk.set({ ...initialState, loading: isEnabled() && !expectsParams });
+      baseChunk.set({ ...initialState, loading: isEnabled() && (isPaginated || !expectsParams) });
       setupSideEffects();
-      if (isEnabled() && !expectsParams) fetchData();
+      if (isEnabled() && (isPaginated || !expectsParams)) fetchData();
     },
 
     cleanup: () => {
