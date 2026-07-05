@@ -34,7 +34,7 @@ interface UseAsyncChunkResult<T, E extends Error, P extends Record<string, any>>
   reload: (params?: Partial<P>) => Promise<void>;
   refresh: (params?: Partial<P>) => Promise<void>;
   mutate: (mutator: (currentData: T | null) => T | null) => void;
-  reset: () => void;
+  reset: (refetch?: boolean) => void;
 }
 
 interface UseAsyncChunkResultWithParams<T, E extends Error, P extends Record<string, any>>
@@ -180,7 +180,7 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
     const { resolvedParams: rp, fetchOnMount: fom } = optionsRef.current;
     if (rp && hasSetParams(asyncChunk)) {
       if (enabled) asyncChunk.setParams(rp);
-    } else if (fom || (enabled && initialState.data === null && !initialState.loading)) {
+    } else if (enabled && (fom || (initialState.data === null && !initialState.loading))) {
       asyncChunk.reload();
     }
 
@@ -234,7 +234,7 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
   );
 
   const reset = useCallback(
-    () => asyncChunk.reset(),
+    (refetch?: boolean) => asyncChunk.reset(refetch),
     [asyncChunk]
   );
 
