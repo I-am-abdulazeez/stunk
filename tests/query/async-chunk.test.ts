@@ -1198,3 +1198,40 @@ describe('asyncChunk — cursor pagination', () => {
     expect(fetchCount).toBe(countAfterMount + 1); // exactly one new fetch, not two
   });
 });
+
+it('should reset cursor and page to initial state on reload()', async () => {
+  const cursorsSeen: (string | undefined)[] = [];
+
+  const fetchConversations = async ({ cursor, pageSize }: { cursor?: string; pageSize: number }) => {
+    cursorsSeen.push(cursor);
+    const isFirstPage = cursor === undefined;
+    return createDelayedResponse({
+      data: [{ id: isFirstPage ? 'first' : 'second' }],
+      cursor: isFirstPage ? 'cursor-page-2' : undefined,
+    }, 50);
+  };
+
+  const conversationsChunk = paginatedAsyncChunk(fetchConversations, {
+    pagination: {
+      pageSize: 5,
+      mode: 'accumulate',
+      cursorMode: { getNextCursor: (res) => res.cursor },
+    },
+  });
+
+  conversationsChunk.reload();
+  await delay(100);
+
+  await conversationsChunk.nextPage();
+  await delay(100);
+
+  expect(conversationsChunk.get().pagination?.cursor).toBe(undefined);
+  expect(conversationsChunk.get().data).toHaveLength(2);
+
+  // Reload should return to page 1 — not continue from the leftover cursor
+  await conversationsChunk.reload();
+  await delay(100);
+
+  expect(cursorsSeen.at(-1)).toBeUndefined();
+  expect(conversationsChunk.get().pagination?.page).toBe(1);
+});
