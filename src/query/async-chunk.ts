@@ -369,11 +369,10 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         setCacheTimeout();
         if (onSuccess) onSuccess(data);
       } catch (error) {
-        // Discard stale error too
         if (JSON.stringify(currentParams) !== paramsKeyAtStart) {
           return;
         }
-        if (retries > 0) {
+        if (retries > 0 && !(error as any)?.nonRetryable) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           inFlightRequests.delete(chunkKey);
           return fetchData(params, retries - 1, force);
