@@ -128,7 +128,7 @@ export interface AsyncChunk<T, E extends Error = Error> extends Chunk<AsyncState
   /** Update data directly without a network request */
   mutate: (mutator: (currentData: T | null) => T | null) => void;
   /** Reset to initial state and re-fetch */
-  reset: () => void;
+  reset: (refetch?: boolean) => void;
   /** Safe cleanup — only tears down if no active subscribers remain */
   cleanup: () => void;
   /** Force cleanup regardless of subscriber count */
@@ -475,12 +475,12 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
       baseChunk.set({ ...state, data: mutator(state.data) });
     },
 
-    reset: () => {
+    reset: (refetch = true) => {
       teardownSideEffects();
       currentParams = {};
-      baseChunk.set({ ...initialState, loading: isEnabled() && (isPaginated || !expectsParams) });
+      baseChunk.set({ ...initialState, loading: isEnabled() && refetch && (isPaginated || !expectsParams) });
       setupSideEffects();
-      if (isEnabled() && (isPaginated || !expectsParams)) fetchData();
+      if (isEnabled() && refetch && (isPaginated || !expectsParams)) fetchData();
     },
 
     cleanup: () => {

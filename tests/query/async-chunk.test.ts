@@ -1235,3 +1235,52 @@ it('should reset cursor and page to initial state on reload()', async () => {
   expect(cursorsSeen.at(-1)).toBeUndefined();
   expect(conversationsChunk.get().pagination?.page).toBe(1);
 });
+
+it('should reset state without refetching when reset(false) is called', async () => {
+  let callCount = 0;
+  const userChunk = asyncChunk<User>(async () => {
+    callCount++;
+    return { id: callCount, name: `User ${callCount}` };
+  });
+
+  await delay(100);
+  expect(callCount).toBe(1);
+  expect(userChunk.get().data).toEqual({ id: 1, name: 'User 1' });
+
+  userChunk.reset(false);
+
+  expect(userChunk.get().loading).toBe(false);
+  expect(userChunk.get().data).toBe(null);
+
+  await delay(100);
+  expect(callCount).toBe(1); // no new fetch triggered
+});
+
+it('should refetch paginated chunk on reset(true) but not on reset(false)', async () => {
+  let callCount = 0;
+
+  const fetchNotifications = async ({ cursor, pageSize }: { cursor?: string; pageSize: number }) => {
+    callCount++;
+    return createDelayedResponse({
+      data: [{ id: `item-${callCount}` }],
+      cursor: undefined,
+    }, 50);
+  };
+
+  const notificationsChunk = paginatedAsyncChunk(fetchNotifications, {
+    pagination: { pageSize: 5, mode: 'accumulate' },
+  });
+
+  notificationsChunk.reload();
+  await delay(100);
+  expect(callCount).toBe(1);
+
+  notificationsChunk.reset(false);
+  await delay(100);
+  expect(callCount).toBe(1); // no refetch
+  expect(notificationsChunk.get().data).toBe(null);
+
+  notificationsChunk.reset(true);
+  await delay(100);
+  expect(callCount).toBe(2); // refetched
+});
