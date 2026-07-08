@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   AsyncChunk,
   AsyncStateWithPagination,
@@ -121,8 +121,9 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
 ) {
   // Resolve to a per-component instance if this chunk opted into scoping —
   // completely invisible to the caller, same chunk reference passed in either way.
-  const [asyncChunk] = useState(() =>
-    hasScopedFactory(asyncChunkArg) ? asyncChunkArg.__scopedFactory() : asyncChunkArg
+  const asyncChunk = useMemo(
+    () => (hasScopedFactory(asyncChunkArg) ? asyncChunkArg.__scopedFactory() : asyncChunkArg),
+    [asyncChunkArg]
   );
 
   const resolvedParams = options.params;
