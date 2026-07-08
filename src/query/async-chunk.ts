@@ -104,6 +104,17 @@ export interface AsyncChunkOptions<T, E extends Error = Error, P extends Record<
   /** Refetch when window regains focus (default: false) */
   refetchOnWindowFocus?: boolean;
 
+  /**
+  * When true, useAsyncChunk gives each calling component its own
+  * independent instance of this chunk instead of sharing the module-level
+  * singleton. Use for parameterized/filtered data (paginated lists, search
+  * results) where multiple simultaneous consumers must not share state.
+  * Leave false (default) for true app-wide singletons (current user,
+  * wallet balance, notification list) that must stay in sync everywhere.
+  * (default: false)
+  */
+  scoped?: boolean;
+
   pagination?: {
     /** Initial page number (default: 1) */
     initialPage?: number;
@@ -176,7 +187,8 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
     refetchInterval = globalQuery.refetchInterval,
     refetchOnWindowFocus = globalQuery.refetchOnWindowFocus ?? false,
     pagination: paginationConfig,
-  } = options;
+    scoped = false,
+  } = options as AsyncChunkOptions<T, E, P> & { scoped?: boolean };
 
   let currentParams: Partial<P> = {};
   const chunkKey = key ?? `async_chunk_${chunkCounter++}`;
@@ -233,7 +245,11 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
   const setCacheTimeout = () => {
     if (cacheTimeoutId) clearTimeout(cacheTimeoutId);
     if (cacheTime > 0) {
-      cacheTimeoutId = setTimeout(clearCache, cacheTime);
+      cacheTimeoutId = setTimeout(() => {
+        if (subscriberCount <= 0) {
+          clearCache();
+        }
+      }, cacheTime);
     }
   };
 
@@ -273,12 +289,12 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
 
     if (!force && !isStale() && baseChunk.get().data !== null) return;
 
-    if (inFlightRequests.has(chunkKey)) {
-      return inFlightRequests.get(chunkKey)!;
-    }
-
-    // Snapshot params key at fetch start — used to detect stale responses
     const paramsKeyAtStart = JSON.stringify(currentParams);
+    const dedupKey = `${chunkKey}:${paramsKeyAtStart}`;
+
+    if (inFlightRequests.has(dedupKey)) {
+      return inFlightRequests.get(dedupKey)!;
+    }
 
     const state = baseChunk.get();
     const previousData = state.data;
@@ -312,12 +328,10 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
           ? await fetcher(fetchParams)
           : await (fetcher as () => Promise<T | FetcherResponse<T>>)();
 
-        // Discard stale response — params changed while this fetch was in flight
         if (JSON.stringify(currentParams) !== paramsKeyAtStart) {
           return;
         }
 
-        // Discard if cancelled
         if (isCancelled) {
           return;
         }
@@ -374,7 +388,7 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         }
         if (retries > 0 && !(error as any)?.nonRetryable) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
-          inFlightRequests.delete(chunkKey);
+          inFlightRequests.delete(dedupKey);
           return fetchData(params, retries - 1, force);
         }
 
@@ -390,11 +404,11 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
 
         if (onError) onError(error as E);
       } finally {
-        inFlightRequests.delete(chunkKey);
+        inFlightRequests.delete(dedupKey);
       }
     })();
 
-    inFlightRequests.set(chunkKey, request);
+    inFlightRequests.set(dedupKey, request);
     return request;
   };
 
@@ -507,7 +521,6 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         if (state.pagination) {
           baseChunk.set({
             ...state,
-            // Clear data immediately when clearOnParamChange is set (paginated)
             data: clearOnParamChange ? initialData : (paginationMode === 'accumulate' ? initialData : state.data),
             pagination: {
               ...state.pagination,
@@ -517,8 +530,6 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
           });
         }
       } else if (clearOnParamChange) {
-        // Immediately clear stale data so consumers see null (loading state)
-        // instead of the previous param's data while the new fetch resolves.
         const state = baseChunk.get();
         baseChunk.set({
           ...state,
@@ -538,8 +549,10 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
     },
   };
 
+  let instance: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>;
+
   if (isPaginated) {
-    return {
+    instance = {
       ...baseInstance,
 
       nextPage: async () => {
@@ -598,9 +611,19 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         await fetchData(currentParams, retryCount, true);
       },
     } as PaginatedAsyncChunk<T, E>;
+  } else {
+    instance = baseInstance;
   }
 
-  return baseInstance;
+  if (scoped) {
+    Object.defineProperty(instance, "__scopedFactory", {
+      value: () => createAsyncChunkInternal(fetcher, options),
+      enumerable: false,
+      writable: false,
+    });
+  }
+
+  return instance;
 }
 
 export function asyncChunk<T, E extends Error = Error>(
