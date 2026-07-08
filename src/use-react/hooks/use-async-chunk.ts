@@ -25,6 +25,14 @@ function hasClearParams<T, E extends Error>(
   return 'clearParams' in c;
 }
 
+function hasScopedFactory<T, E extends Error>(
+  c: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>
+): c is (AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>) & {
+  __scopedFactory: () => AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>;
+} {
+  return '__scopedFactory' in c;
+}
+
 interface UseAsyncChunkResult<T, E extends Error, P extends Record<string, any>> {
   data: T | null;
   loading: boolean;
@@ -62,10 +70,6 @@ export interface UseAsyncChunkOptions<T = any, E extends Error = Error, P extend
    * the chunk automatically re-fetches with the new values.
    */
   params?: Partial<P>;
-  /**
-   * @deprecated Use `params` instead. Will be removed in v3 stable.
-   */
-  initialParams?: Partial<P>;
   /**
    * Force a fetch on mount even when the chunk has no params.
    * Ignored if params is provided.
@@ -112,10 +116,16 @@ export function useAsyncChunk<T, E extends Error = Error, P extends Record<strin
 ): UseAsyncChunkResult<T, E, P>;
 
 export function useAsyncChunk<T, E extends Error = Error, P extends Record<string, any> = {}>(
-  asyncChunk: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>,
+  asyncChunkArg: AsyncChunk<T, E> | PaginatedAsyncChunk<T, E>,
   options: UseAsyncChunkOptions<T, E, P> = {}
 ) {
-  const resolvedParams = options.params ?? options.initialParams;
+  // Resolve to a per-component instance if this chunk opted into scoping —
+  // completely invisible to the caller, same chunk reference passed in either way.
+  const [asyncChunk] = useState(() =>
+    hasScopedFactory(asyncChunkArg) ? asyncChunkArg.__scopedFactory() : asyncChunkArg
+  );
+
+  const resolvedParams = options.params;
   const { fetchOnMount = false, onSuccess, onError, enabled = true } = options;
 
   const [state, setState] = useState<AsyncStateWithPagination<T, E>>(
