@@ -451,7 +451,8 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
 
     cancel: () => {
       isCancelled = true;
-      inFlightRequests.delete(chunkKey);
+      const dedupKey = `${chunkKey}:${JSON.stringify(currentParams)}`;
+      inFlightRequests.delete(dedupKey);
       const state = baseChunk.get();
       if (state.loading) {
         baseChunk.set({ ...state, loading: false });
