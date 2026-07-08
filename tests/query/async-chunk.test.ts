@@ -1284,3 +1284,168 @@ it('should refetch paginated chunk on reset(true) but not on reset(false)', asyn
   await delay(100);
   expect(callCount).toBe(2); // refetched
 });
+
+describe('asyncChunk — dedup key includes params', () => {
+  it('should not dedupe an unfiltered request against a differently-filtered one', async () => {
+    const seenParams: any[] = [];
+
+    const fetchList = async (params: { status?: string; page: number; pageSize: number }) => {
+      seenParams.push({ ...params });
+      return createDelayedResponse({ data: [params.status ?? 'all'], hasMore: false }, 80);
+    };
+
+    const listChunk = paginatedAsyncChunk(fetchList, {
+      pagination: { pageSize: 10, mode: 'replace' },
+    });
+
+    // Fire an unfiltered reload, then immediately a filtered setParams —
+    // simulates AgentPayout's mount-effect race (reload() then setParams()).
+    listChunk.reload();
+    listChunk.setParams({ status: 'pending' });
+
+    await delay(150);
+
+    // Both requests must have actually reached the fetcher — not deduped onto
+    // the same in-flight promise.
+    expect(seenParams.length).toBeGreaterThanOrEqual(2);
+
+    // Final state must reflect the filtered request, not the unfiltered one.
+    expect(listChunk.get().data).toEqual(['pending']);
+  });
+
+  it('should still dedupe truly identical concurrent requests (same params)', async () => {
+    let fetchCount = 0;
+
+    const userChunk = asyncChunk<User>(
+      async () => {
+        fetchCount++;
+        return createDelayedResponse({ id: 1, name: 'Test User' }, 100);
+      },
+      { key: 'dedup-same-params-test' }
+    );
+
+    userChunk.reload();
+    userChunk.reload();
+    userChunk.reload();
+
+    await delay(150);
+
+    expect(fetchCount).toBe(1);
+  });
+});
+
+describe('asyncChunk — subscriber-gated cache eviction', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should NOT clear data after cacheTime while a subscriber is still active', async () => {
+    const userChunk = asyncChunk<User>(
+      async () => ({ id: 1, name: 'Test User' }),
+      { cacheTime: 5000 }
+    );
+
+    const unsubscribe = userChunk.subscribe(() => { });
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(userChunk.get().data).toEqual({ id: 1, name: 'Test User' });
+
+    // Advance well past cacheTime while still subscribed
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(userChunk.get().data).toEqual({ id: 1, name: 'Test User' });
+
+    unsubscribe();
+  });
+
+  it('should clear data after cacheTime once all subscribers have left', async () => {
+    const userChunk = asyncChunk<User>(
+      async () => ({ id: 1, name: 'Test User' }),
+      { cacheTime: 5000 }
+    );
+
+    const unsubscribe = userChunk.subscribe(() => { });
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(userChunk.get().data).toEqual({ id: 1, name: 'Test User' });
+
+    unsubscribe(); // subscriberCount drops to 0
+
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(userChunk.get().data).toBe(null);
+  });
+
+  it('should not clear data if a new subscriber joins before cacheTime elapses', async () => {
+    const userChunk = asyncChunk<User>(
+      async () => ({ id: 1, name: 'Test User' }),
+      { cacheTime: 5000 }
+    );
+
+    const unsubscribe1 = userChunk.subscribe(() => { });
+    await vi.advanceTimersByTimeAsync(100);
+
+    unsubscribe1();
+    await vi.advanceTimersByTimeAsync(2000); // still within cacheTime window
+
+    const unsubscribe2 = userChunk.subscribe(() => { }); // new subscriber joins
+    await vi.advanceTimersByTimeAsync(4000); // total 6000ms since fetch, but resubscribed
+
+    // Data should remain since a subscriber is active when the timeout fires
+    expect(userChunk.get().data).toEqual({ id: 1, name: 'Test User' });
+
+    unsubscribe2();
+  });
+});
+
+describe('asyncChunk — scoped instances', () => {
+  it('should attach __scopedFactory when scoped:true', async () => {
+    const userChunk = asyncChunk<User>(
+      async () => ({ id: 1, name: 'Test User' }),
+      { scoped: true } as any
+    );
+
+    expect('__scopedFactory' in userChunk).toBe(true);
+    expect(typeof (userChunk as any).__scopedFactory).toBe('function');
+  });
+
+  it('should NOT attach __scopedFactory by default', async () => {
+    const userChunk = asyncChunk<User>(async () => ({ id: 1, name: 'Test User' }));
+    expect('__scopedFactory' in userChunk).toBe(false);
+  });
+
+  it('should produce independent instances via the scoped factory', async () => {
+    let fetchCount = 0;
+
+    const listChunk = paginatedAsyncChunk(
+      async ({ page, pageSize }: { page: number; pageSize: number }) => {
+        fetchCount++;
+        return { data: [`instance-${fetchCount}-page-${page}`], hasMore: true };
+      },
+      {
+        pagination: { pageSize: 10, mode: 'replace' },
+        scoped: true,
+      } as any
+    );
+
+    const factory = (listChunk as any).__scopedFactory;
+    const instanceA = factory();
+    const instanceB = factory();
+
+    expect(instanceA).not.toBe(instanceB);
+    expect(instanceA).not.toBe(listChunk);
+
+    await instanceA.reload();
+    await instanceB.reload();
+    await delay(50);
+
+    await instanceA.nextPage();
+    await delay(50);
+
+    // instanceB must be unaffected by instanceA's page advance
+    expect(instanceA.get().pagination?.page).toBe(2);
+    expect(instanceB.get().pagination?.page).toBe(1);
+  });
+});
