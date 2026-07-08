@@ -89,7 +89,7 @@ describe("useAsyncChunk hook order stability", () => {
     const sharedChunk = asyncChunk(fetcher);
 
     function InitOnlyHarness({ params }: { params: { query: string } }) {
-      useAsyncChunk(sharedChunk, { initialParams: params });
+      useAsyncChunk(sharedChunk, { params });
       return null;
     }
 
@@ -121,7 +121,7 @@ describe("useAsyncChunk hook order stability", () => {
       source: AsyncChunk<string, Error>;
       params: { query: string };
     }) {
-      useAsyncChunk(source, { initialParams: params });
+      useAsyncChunk(source, { params });
       return null;
     }
 
