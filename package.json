@@ -43,6 +43,10 @@
       "types": "./dist/use-react/index.d.ts",
       "import": "./dist/use-react/index.js"
     },
+    "./vue": {
+      "types": "./dist/use-vue/index.d.ts",
+      "import": "./dist/use-vue/index.js"
+    },
     "./package.json": "./package.json"
   },
   "keywords": [

@@ -18,13 +18,13 @@ export default defineConfig([
     },
   },
 
-  // Subpath entries — middleware, query, react
+  // Subpath entries — middleware, query, react, vue
   {
     entry: {
       'middleware/index': 'src/middleware/index.ts',
       'use-react/index': 'src/use-react/index.ts',
       'query/index': 'src/query/index.ts',
-      // 'use-vue/index': 'src/use-vue/index.ts',
+      'use-vue/index': 'src/use-vue/index.ts',
     },
     format: ['esm'],
     dts: true,
