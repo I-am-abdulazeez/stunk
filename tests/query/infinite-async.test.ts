@@ -469,4 +469,44 @@ describe('infiniteAsyncChunk — cleanup', () => {
     chunk.forceCleanup(); // should not throw
     expect(chunk.get().data).toHaveLength(10);
   });
+
+  it('should accumulate when nextPage is called from a microtask after a page lands', async () => {
+    // Regression: nextPage() resets its accumulate flag after `await fetchData`.
+    // A subscriber reacting to the page landing (e.g. a framework scheduler)
+    // that queues another nextPage() on a microtask runs BEFORE that reset —
+    // the reset then landed mid-flight and the new page replaced the
+    // accumulated data instead of appending.
+    const chunk = infiniteAsyncChunk<Post>(
+      async ({ page, pageSize }) =>
+        createDelayedResponse(createPostPage(page, pageSize, 30), 10),
+      { pageSize: 10 }
+    );
+
+    await chunk.reload();
+
+    // Queue on page-2 COMPLETION — nextPage() bumps pagination.page before
+    // setting loading, and that intermediate notification also reports
+    // { loading: false, page: 2 }, so the length check is what
+    // distinguishes "page 2 landed" from "page 2 requested".
+    let queued = false;
+    const unsubscribe = chunk.subscribe((state) => {
+      if (!state.loading && state.pagination?.page === 2 && (state.data?.length ?? 0) === 20 && !queued) {
+        queued = true;
+        Promise.resolve().then(() => chunk.nextPage());
+      }
+    });
+
+    await chunk.nextPage();
+
+    await vi.waitFor(() => {
+      expect(chunk.get().pagination?.page).toBe(3);
+      expect(chunk.get().loading).toBe(false);
+    });
+
+    expect(chunk.get().data).toHaveLength(30);
+    expect(chunk.get().data?.[0].id).toBe(1);
+    expect(chunk.get().data?.[29].id).toBe(30);
+
+    unsubscribe();
+  });
 });

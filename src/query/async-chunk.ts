@@ -280,6 +280,19 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
     }
   };
 
+  // Paginated chunks include the target page (or cursor) in the key —
+  // params alone would make a nextPage() fetch dedup onto the previous
+  // page's still-registered request and silently skip the new page.
+  const buildDedupKey = () => {
+    const paramsKey = JSON.stringify(currentParams);
+    if (!isPaginated) return `${chunkKey}:${paramsKey}`;
+    const pagination = baseChunk.get().pagination;
+    const pageKey = isCursorMode
+      ? `cursor=${pagination?.cursor ?? ''}`
+      : `page=${pagination?.page ?? 1}`;
+    return `${chunkKey}:${paramsKey}:${pageKey}`;
+  };
+
   const fetchData = async (params?: Partial<P>, retries = retryCount, force = false): Promise<void> => {
     if (!isEnabled()) return;
 
@@ -290,7 +303,7 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
     if (!force && !isStale() && baseChunk.get().data !== null) return;
 
     const paramsKeyAtStart = JSON.stringify(currentParams);
-    const dedupKey = `${chunkKey}:${paramsKeyAtStart}`;
+    const dedupKey = buildDedupKey();
 
     if (inFlightRequests.has(dedupKey)) {
       return inFlightRequests.get(dedupKey)!;
@@ -298,6 +311,13 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
 
     const state = baseChunk.get();
     const previousData = state.data;
+
+    // Capture at request start — nextPage() resets the flag after its await,
+    // which races with a subsequent nextPage() issued from a microtask (e.g.
+    // a framework scheduler reacting to this fetch landing). Reading the
+    // closure flag at resolve time would see false and replace instead of
+    // accumulate.
+    const isNextPageRequest = isNextPageFetch;
 
     baseChunk.set({
       ...state,
@@ -358,7 +378,7 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
         if (
           isPaginated &&
           paginationMode === 'accumulate' &&
-          isNextPageFetch &&
+          isNextPageRequest &&
           previousData &&
           Array.isArray(previousData) &&
           Array.isArray(data)
@@ -451,8 +471,7 @@ function createAsyncChunkInternal<T, E extends Error = Error, P extends Record<s
 
     cancel: () => {
       isCancelled = true;
-      const dedupKey = `${chunkKey}:${JSON.stringify(currentParams)}`;
-      inFlightRequests.delete(dedupKey);
+      inFlightRequests.delete(buildDedupKey());
       const state = baseChunk.get();
       if (state.loading) {
         baseChunk.set({ ...state, loading: false });
