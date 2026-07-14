@@ -8,7 +8,8 @@
     "declaration": true,
     "paths": {
       "stunk/middleware": ["./src/middleware"],
-      "stunk/react": ["./src/use-react"]
+      "stunk/react": ["./src/use-react"],
+      "stunk/vue": ["./src/use-vue"]
     },
     "typeRoots": ["./node_modules/@types", "./types"],
     "strict": true,
