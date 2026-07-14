@@ -5,7 +5,7 @@ import vue from "@vitejs/plugin-vue"
 export default defineConfig({
   plugins: [
     react({ include: /tests\/react\/.+\.(tsx?|jsx?)$/ }),
-    vue({ include: /tests\/vue\/.+\.(vue|ts)$/ }),
+    vue({ include: /tests\/vue\/.+\.vue$/ }),
   ],
   test: {
     environment: "jsdom",
